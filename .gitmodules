@@ -1,3 +1,6 @@
 [submodule "dafny"]
 	path = dafny
 	url = https://github.com/isabel-amaral/dafny.git
+[submodule "verifixer_fault_localization"]
+	path = verifixer_fault_localization
+	url = git@github.com:VeriFixer/verifixer_fault_localization.git
