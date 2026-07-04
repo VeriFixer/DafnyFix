@@ -11,6 +11,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
+# Copy the source code
+COPY verifixer_fault_localization/ /app/verifixer_fault_localization/
+COPY repair/ /app/repair/
+# and the custom dafny fork
+COPY dafny/ /app/dafny/
+
+
+# Build external dependencies
 ARG Z3_VERSION=4.12.1
 ARG FAULT_LOC_DAFNY_VERSION=v4.11.0
 ARG Z3_REPO=https://github.com/Z3Prover/z3.git
@@ -60,9 +68,10 @@ RUN JAVA_ARCH=$(dpkg --print-architecture) && \
 ENV JAVA_HOME=/usr/lib/jvm/default-java
 
 # Build Dafny's version used for fault localization from the repo you point at
-RUN git clone --depth 1 --branch "${FAULT_LOC_DAFNY_VERSION}" "${DAFNY_REPO}" /app/fault-loc-dafny && \
-    make -C /app/fault-loc-dafny -j"$(nproc)" && \
-    ln -sf /app/fault-loc-dafny/Binaries/Dafny /usr/local/bin/dafny
+RUN git clone --depth 1 --branch "${FAULT_LOC_DAFNY_VERSION}" "${DAFNY_REPO}" /tmp/dafny && \
+    make -C /tmp/dafny -j"$(nproc)" && \
+    mv /tmp/dafny /app/verifixer_fault_localization && \
+    ln -sf /app/verifixer_fault_localization/dafny/Binaries/Dafny /usr/local/bin/dafny
 
 # Daikon
 ENV DAIKONDIR="/opt/daikon"
@@ -76,11 +85,11 @@ RUN git clone --depth 1 --branch master https://github.com/codespecs/daikon.git 
 ENV PATH="${DAIKONDIR}:${PATH}"
 
 
-# Now copy the source code
-COPY verifixer_fault_localization/ /app/verifixer_fault_localization/
-COPY repair/ /app/repair/
-# and the custom dafny fork
-COPY dafny/ /app/dafny/
+# Build our tools
+# Keep pytest configuration available in-container so test discovery/path settings match local runs
+COPY verifixer_fault_localization/pytest.ini /app/verifixer_fault_localization/pytest.ini
+# Small marker file
+COPY verifixer_fault_localization/.repo_verifixer_fault_localization_marker /app/verifixer_fault_localization
 
 # Build test generation: DafnyTestGen
 COPY verifixer_fault_localization/external/tests_gen/dafny-test-gen/ /app/verifixer_fault_localization/external/dafny-test-gen/
@@ -96,9 +105,9 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
     set -euo pipefail; \
     for csproj in /app/verifixer_fault_localization/strategies/*/*.csproj; do \
       dir="$(dirname "$csproj")"; \
-      out="/app/build_output/$(basename "$dir")"; \
+      out="/app/verifixer_fault_localization/build_output/$(basename "$dir")"; \
       dotnet restore "$csproj"; \
-      dotnet build "$csproj" -c Release -o "$out" --no-restore /p:DafnyDir=/app/fault-loc-dafny/Binaries; \
+      dotnet build "$csproj" -c Release -o "$out" --no-restore /p:DafnyDir=/app/verifixer_fault_localization/dafny/Binaries; \
     done
 
 # Build fault localization: SNAP
@@ -108,7 +117,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
     cp -a /tmp/z3/build/Microsoft.Z3.dll /app/verifixer_fault_localization/external/tools/dafny-autofix/autofix/lib && \
     cp -a /tmp/z3/build/libz3.so /app/verifixer_fault_localization/external/tools/dafny-autofix/autofix/lib && \
     dotnet restore /app/verifixer_fault_localization/external/tools/dafny-autofix/autofix && \
-    dotnet build /app/verifixer_fault_localization/external/tools/dafny-autofix/autofix -c Release -o /app/build_output/Autofix --no-restore /p:DafnyDir=/app/fault-loc-dafny/Binaries
+    dotnet build /app/verifixer_fault_localization/external/tools/dafny-autofix/autofix -c Release -o /app/verifixer_fault_localization/build_output/Autofix --no-restore /p:DafnyDir=/app/verifixer_fault_localization/dafny/Binaries
 
 # Build repair: custom dafny fork + z3 binary + plugin
 RUN --mount=type=cache,target=/root/.nuget/packages \
