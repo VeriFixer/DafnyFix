@@ -229,7 +229,7 @@ public class MutantGenerator(int numMutations, string mutationTargetPos, string 
 
         var filename = Path.GetFileNameWithoutExtension(program.Name);
         if (numMutations == -1) {
-            filename += _mutationArg != "" ? 
+            filename += !string.IsNullOrEmpty(_mutationArg) ? 
                 $"__{_mutationTargetPos}_{_mutationOperator}_{_mutationArg}.dfy" : 
                 $"__{_mutationTargetPos}_{_mutationOperator}.dfy";   
         } else {
