@@ -14,6 +14,7 @@ WORKDIR /app
 # Copy the source code
 COPY verifixer_fault_localization/ /app/verifixer_fault_localization/
 COPY repair/ /app/repair/
+COPY run.sh /app/run.sh
 # and the custom dafny fork
 COPY dafny/ /app/dafny/
 
