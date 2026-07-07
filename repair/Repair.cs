@@ -101,6 +101,7 @@ public class Repair : PluginConfiguration
                 (StateChangingTargetAssign.Item1 != "" && 
                  StateChangingTargetAssign.Item2 != "")) {
                 ParseSnapshotArguments(args[i..]);
+                break;
             } else if (StateChangingTargetAssign.Item1 == "") {
                 StateChangingTargetAssign = (arg, StateChangingTargetAssign.Item2);
             } else if (StateChangingTargetAssign.Item2 == "") {
@@ -319,7 +320,7 @@ public class StateTemplateInstantiator(string templateType, (int, string, bool?)
         printer.PrintProgram(program, false);
         var programText = stringWriter.ToString();
 
-        var filename = Path.GetFileNameWithoutExtension(program.Name);
+        var filename = Path.GetFileNameWithoutExtension(program.Name)[..^21]; // remove __instrumented_helper
         var snapshotStr = $"{snapshotTarget.Item1}{(templateType != "tpl1" ? 
             $"_{snapshotTarget.Item2}_{snapshotTarget.Item3}" : "")}";
         var assignStr = templateType != "tpl3" ? $"__{stateChangingTargetAssign.Item1}" : "";
