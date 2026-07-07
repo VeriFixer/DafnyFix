@@ -1,7 +1,9 @@
 ﻿using Microsoft.Dafny;
 using Microsoft.Dafny.Plugins;
-using Repair.Mutator;
 using Repair.Visitor;
+using Repair.Scanner;
+using Repair.Mutator;
+using Repair.Templates;
 using PluginConfiguration = Microsoft.Dafny.LanguageServer.Plugins.PluginConfiguration;
 
 namespace Repair;
@@ -17,11 +19,11 @@ public class Repair : PluginConfiguration
     private int MutationTargetLine { get; set; } = -1;
     private (int, int) MutationTargetRange { get; set; } = (-1, -1);
     private string MutationTargetURI { get; set; } = "";
+    private (int, string) StateTarget { get; set; } = (-1, "");
     private int NumMutations { get; set; } = -1;
     private string? MutationTargetPos { get; set; }
     private string? MutationOperator { get; set; }
     private string? MutationArg { get; set; }
-    private bool FuzzInfo { get; set; }
     
     public override void ParseArguments(string[] args) {
         if (args.Length == 0) return;
@@ -53,27 +55,29 @@ public class Repair : PluginConfiguration
                 if (int.TryParse(positions[0], out var startPost) && 
                     int.TryParse(positions[1], out var endPost))
                     MutationTargetRange = (startPost, endPost);
+            } else if (arg.StartsWith("state:") && arg.Contains(',')) {
+                var snapElements = arg[6..].Split(",");
+                if (int.TryParse(snapElements[0], out var snapPos))
+                    StateTarget = (snapPos, snapElements[1]);  
             } else if (IsValidOperator(arg)) {
                 OperatorsInUse.Add(arg);
+            } else if (StateTarget != (-1, "")) {
+                StateTarget = (StateTarget.Item1, $"{StateTarget.Item2} {arg}");
             }
         }
     }
 
     private void ParseMutArguments(string[] args) {
-        if (args.Contains("fuzzInfo"))
-            FuzzInfo = true;
-        
         foreach (var (arg, i) in args.Select((arg, i) => (arg, i))) {
-            if (i == 0 || arg == "fuzzInfo")
-                continue;
+            if (i == 0) continue;
             
-            if (args.Length == (FuzzInfo ? 3 : 2)) {
+            if (args.Length == 2) {
                 NumMutations = int.Parse(arg);
             } else if (MutationTargetPos == null) {
                 MutationTargetPos = arg;
             } else if (MutationOperator == null) {
                 MutationOperator = arg;
-            } else if (args.Length == (FuzzInfo ? 5 : 4)) {
+            } else if (args.Length == 4) {
                 MutationArg = arg;
             } else {
                 MutationArg = string.Join(" ", args[i..]);
@@ -84,9 +88,9 @@ public class Repair : PluginConfiguration
 
     public override Rewriter[] GetRewriters(ErrorReporter reporter) {
         return _mutate ? 
-            [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, FuzzInfo, reporter)] : 
+            [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, reporter)] : 
             _scan ? 
-                [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, MutationTargetLine, MutationTargetRange, OperatorsInUse, reporter)] : 
+                [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, MutationTargetLine, MutationTargetRange, StateTarget, OperatorsInUse, reporter)] : 
                 [];
     }
 
@@ -104,10 +108,13 @@ public class Repair : PluginConfiguration
     }
 }
 
-public class MutationTargetScanner(string mutationTargetURI, string mutationTargetMethod, int mutationTargetLine, (int, int) mutationTargetRange, List<string> operatorsInUse, ErrorReporter reporter) 
+public class MutationTargetScanner(string mutationTargetURI, string mutationTargetMethod, 
+    int mutationTargetLine, (int, int) mutationTargetRange, (int, string) stateTarget, 
+    List<string> operatorsInUse, ErrorReporter reporter) 
     : Rewriter(reporter)
 {
     public static bool FirstCall = true;
+    private readonly bool _wantsStateTarget = stateTarget != (-1, "");
     
     public override void PreResolve(Program program) {
         // save original code but post serialization to perform diffs
@@ -118,18 +125,30 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
         var specHelperFinder = new SpecHelperFinder(Reporter);
         specHelperFinder.Find(module);
         
-        var targetScanner = new PreResolveTargetScanner(mutationTargetURI, mutationTargetMethod, mutationTargetLine, mutationTargetRange, operatorsInUse, Reporter);
+        var targetScanner = new PreResolveTargetScanner(mutationTargetURI, 
+            mutationTargetMethod, mutationTargetLine, mutationTargetRange, 
+            _wantsStateTarget, operatorsInUse, Reporter);
         targetScanner.Find(module);
         targetScanner.ExportTargets();
     }
 
     public override void PostResolve(ModuleDefinition module) {
-        var targetScanner = new PostResolveTargetScanner(mutationTargetURI, mutationTargetMethod, mutationTargetLine, mutationTargetRange, operatorsInUse, Reporter);
+        var targetScanner = new PostResolveTargetScanner(mutationTargetURI, 
+            mutationTargetLine, mutationTargetRange, 
+            _wantsStateTarget, operatorsInUse, Reporter);
         targetScanner.Find(module);
         targetScanner.ExportTargets();
         FirstCall = false;
     }
-    
+
+    public override void PostResolve(Program program) {
+        if (!_wantsStateTarget)
+            return;
+        var stateTemplateTargetScanner = new StateTemplateTargetScanner(stateTarget.Item1, stateTarget.Item2);
+        stateTemplateTargetScanner.ScanStateBasedTemplates();
+        stateTemplateTargetScanner.ExportTargets();
+    }
+
     private void StoreProgram(Program program) {
         var stringWriter = new StringWriter();
         var printer = new Printer(stringWriter, program.Options, PrintModes.Serialization);
@@ -142,7 +161,7 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
     }
 }
 
-public class MutantGenerator(int numMutations, string mutationTargetPos, string mutationOperator, string? mutationArg, bool fuzzInfo, ErrorReporter reporter) : Rewriter(reporter)
+public class MutantGenerator(int numMutations, string mutationTargetPos, string mutationOperator, string? mutationArg, ErrorReporter reporter) : Rewriter(reporter)
 {
     public static List<Node> MutatedNodes { get; private set; } = [];
     public static int NumMutations = 0; // incremented upon mutating in child mutator classes

@@ -1,10 +1,12 @@
 ﻿using System.Numerics;
 using Microsoft.Dafny;
 
-namespace Repair.Visitor;
+namespace Repair.Scanner;
 
-public class PreResolveTargetScanner(string mutationTargetURI, string mutationTargetMethod, int mutationTargetLine, (int, int) mutationTargetRange, List<string> operatorsInUse, ErrorReporter reporter)
-    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetRange, operatorsInUse, reporter)
+public class PreResolveTargetScanner(string mutationTargetURI, 
+    string mutationTargetMethod, int mutationTargetLine, (int, int) mutationTargetRange, 
+    bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter)
+    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetRange, wantsStateTarget, operatorsInUse, reporter)
 {
     private List<string> _coveredVariableNames = [];
     private List<string> _prevCoveredVariableNames = [];

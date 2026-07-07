@@ -1,9 +1,13 @@
 ﻿using System.Numerics;
 using Microsoft.Dafny;
+using Repair.Visitor;
 
-namespace Repair.Visitor;
+namespace Repair.Scanner;
 
-public abstract class TargetScanner(string mutationTargetURI, int mutationTargetLine, (int, int) mutationTargetRange, List<string> operatorsInUse, ErrorReporter reporter) : Visitor("-1", reporter)
+public abstract class TargetScanner(string mutationTargetURI, 
+    int mutationTargetLine, (int, int) mutationTargetRange, 
+    bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter) 
+    : Visitor.Visitor("-1", reporter)
 {
     protected List<(string, string, string)> Targets { get; } = ImportPreviousTargets();
     protected bool IsParentSpec;
@@ -39,7 +43,7 @@ public abstract class TargetScanner(string mutationTargetURI, int mutationTarget
     }
 
     protected void AddTarget((string, string, string) target) {
-        if (!Targets.Contains(target))
+        if (!wantsStateTarget && !Targets.Contains(target))
             Targets.Add(target);
     }
     

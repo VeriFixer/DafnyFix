@@ -3,16 +3,19 @@ using Microsoft.BaseTypes;
 using Microsoft.Dafny;
 using Type = Microsoft.Dafny.Type;
 
-namespace Repair.Visitor;
+namespace Repair.Scanner;
 
-public class PostResolveTargetScanner(string mutationTargetURI, string mutationTargetMethod, int mutationTargetLine, (int, int) mutationTargetRange, List<string> operatorsInUse, ErrorReporter reporter) 
-    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetRange, operatorsInUse, reporter)
+public class PostResolveTargetScanner(string mutationTargetURI, 
+    int mutationTargetLine, (int, int) mutationTargetRange, 
+    bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter) 
+    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetRange, wantsStateTarget, operatorsInUse, reporter)
 {
     private bool _skipChildUOIMutation;
     private bool _skipChildEVRMutation;
     private bool _skipChildVERMutation;
     private bool _skipChildDCRMutation;
     private bool _skipChildFARMutation;
+    private (Token?, Token?) _currentScope;
     private Token? _childMethodCallPos;
     private VarDeclStmt? _prevVarDeclStmt;
     private ExprDotName? _childExprDotName;
@@ -24,6 +27,7 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
     private readonly List<ExprDotName> _accessedClassFields = [];
     private Dictionary<string, Type> _currentScopeChildClassVariables = [];
     private List<(string, Token, Type)> _childClassAccessedVariables = [];
+    public static List<(string, Type, int, int)> AssignableIdentifiers = [];
     
     private void ScanUOITargets(Expression expr) {
         if (_skipChildUOIMutation || !IsIncludedInTarget(expr)) {
@@ -512,6 +516,8 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
     /// Group of overriden top level visitors
     /// -------------------------------------
     public override void Find(ModuleDefinition module) {
+        if (module.EndToken.pos != 0)
+            _currentScope = (module.StartToken, module.EndToken);
         base.Find(module);
         ScanFARTargets();
     }
@@ -522,12 +528,19 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
     }
     
     protected override void HandleMemberDecls(TopLevelDeclWithMembers decl) {
+        var prevCurrentScope = (CloneToken(_currentScope.Item1), CloneToken(_currentScope.Item2));
+        if ((_currentScope.Item1 == null || decl.StartToken.pos != 0) && 
+            (_currentScope.Item2 == null ||  decl.EndToken.pos != 0))
+            _currentScope = (decl.StartToken, decl.EndToken);
+        
         foreach (var member in decl.Members) {
             if (mutationTargetURI != "" && !member.Origin.Uri.LocalPath.Contains(mutationTargetURI))
                 continue;
             
-            if (decl is ClassLikeDecl clDecl && member is Field f)
-                _classFields.Add((f.Name, clDecl, f.Type));
+            if (decl is ClassLikeDecl clDecl && member is Field f1)
+                _classFields.Add((f1.Name, clDecl, f1.Type));
+            if (member is Field f2)
+                AssignableIdentifiers.Add((f2.Name, f2.Type, decl.StartToken.line, decl.EndToken.line));
             
             if (member is not ConstantField cf || cf.Rhs == null || !IsFieldOriginal(cf)) 
                 continue;
@@ -552,6 +565,7 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
         
         ScanMCRTargets();
         ScanPRVTargets();
+        _currentScope = prevCurrentScope;
         _childClassAccessedVariables = [];
     }
     
@@ -572,6 +586,10 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
                 _currentScopeChildClassVariables.Add(formal.Name, formal.Type);
             }
         }
+        foreach (var formal in method.Outs) {
+            AssignableIdentifiers.Add((formal.Name, formal.Type, method.StartToken.line, method.EndToken.line));
+        }
+        
         base.HandleMethod(method);
         ScanPRVTargets();
         _currentScopeVars = methodIndependentVars;
@@ -599,6 +617,13 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
         _childMethodCallPos = prevChildMethodCallPos;
     }
     
+    protected override void HandleBlock(BlockStmt blockStmt) {
+        var prevCurrentScope = (CloneToken(_currentScope.Item1), CloneToken(_currentScope.Item2));
+        _currentScope = (blockStmt.StartToken, blockStmt.EndToken);
+        base.HandleBlock(blockStmt);
+        _currentScope = prevCurrentScope;
+    }
+    
     protected override void HandleBlock(List<Statement> statements) {
         var blockIndependentVars = new Dictionary<string, Type>(_currentScopeVars);
         var blockIndependentChildClassVars = new Dictionary<string, Type>(_currentScopeChildClassVariables);
@@ -616,8 +641,11 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
 
     private void VisitLhss(ConcreteAssignStatement cAStmt) {
         foreach (var lhs in cAStmt.Lhss) {
-            if (lhs is NameSegment nSegExpr && !_currentScopeVars.ContainsKey(nSegExpr.Name))
-                _currentScopeVars.Add(nSegExpr.Name, nSegExpr.Type);
+            if (lhs is NameSegment nSegExpr) {
+                if (!_currentScopeVars.ContainsKey(nSegExpr.Name))
+                    _currentScopeVars.Add(nSegExpr.Name, nSegExpr.Type);
+                AssignableIdentifiers.Add((nSegExpr.Name, nSegExpr.Type, lhs.EndToken.line, _currentScope.Item2?.line ?? -1));
+            }
         }
     }
     
@@ -656,6 +684,7 @@ public class PostResolveTargetScanner(string mutationTargetURI, string mutationT
                            String.Join(",", aStmt1.Rhss) != String.Join(",", aStmt2.Rhss);
         
         foreach (var (var, i) in vDeclStmt.Locals.Select((var, i) => (var, i)).ToList()) {
+            AssignableIdentifiers.Add((var.Name, var.Type, var.EndToken.line, _currentScope.Item2?.line ?? -1));
             if (canApplySWV && var.Type.ToString() != _prevVarDeclStmt?.Locals[i].Type.ToString())
                 canApplySWV = false;
             
