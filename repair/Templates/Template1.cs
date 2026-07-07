@@ -6,6 +6,12 @@ public class Template1(int snapTargetPos, string stateChangingTargetAssignVar, s
     : StateChangingAssignTemplate(snapTargetPos, stateChangingTargetAssignVar, stateChangingTargetAssignType, reporter)
 {
     protected override void InstantiateTemplate() {
-        throw new NotImplementedException();
+        if (SuspiciousStmt == null || SuspiciousBlockStmt == null) return;
+        
+        var assign = CreateStateChangingAssignment();
+        var faultyStmtIdx = SuspiciousBlockStmt.Body.IndexOf(SuspiciousStmt);
+        if (assign == null || faultyStmtIdx == -1) 
+            return;
+        SuspiciousBlockStmt.Body.Insert(faultyStmtIdx, assign);
     }
 }

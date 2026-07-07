@@ -126,8 +126,8 @@ public class Repair : PluginConfiguration
     }
 
     public override Rewriter[] GetRewriters(ErrorReporter reporter) {
-        return _mutate ? 
-            [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, reporter)] : 
+        return _mutate ? [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, reporter)] : 
+            _tmpRepair ? [new StateTemplateInstantiator(StateTemplate, SnapshotTarget, StateChangingTargetAssign, reporter)] :
             _scan ? 
                 [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, MutationTargetLine, MutationTargetRange, SnapshotTarget, OperatorsInUse, reporter)] : 
                 [];
@@ -298,6 +298,32 @@ public class MutantGenerator(int numMutations, string mutationTargetPos, string 
             }
             filename += ".dfy";
         }
+        File.WriteAllText(filename, programText);
+    }
+}
+
+public class StateTemplateInstantiator(string templateType, (int, string, bool?) snapshotTarget, (string, string) stateChangingTargetAssign, ErrorReporter reporter) : Rewriter(reporter)
+{
+    public override void PreResolve(Program program) {
+        var templateFactory = new TemplateFactory(reporter);
+        var template = templateFactory.Create(templateType, 
+            snapshotTarget.Item1, snapshotTarget.Item2, snapshotTarget.Item3, 
+            stateChangingTargetAssign.Item1, stateChangingTargetAssign.Item2);
+        template?.InstantiateTemplate(program);
+        StoreProgram(program);
+    }
+    
+    private void StoreProgram(Program program) {
+        var stringWriter = new StringWriter();
+        var printer = new Printer(stringWriter, program.Options, PrintModes.Serialization);
+        printer.PrintProgram(program, false);
+        var programText = stringWriter.ToString();
+
+        var filename = Path.GetFileNameWithoutExtension(program.Name);
+        var snapshotStr = $"{snapshotTarget.Item1}{(templateType != "tpl1" ? 
+            $"_{snapshotTarget.Item2}_{snapshotTarget.Item3}" : "")}";
+        var assignStr = templateType != "tpl3" ? $"__{stateChangingTargetAssign.Item1}" : "";
+        filename += $"__{templateType}__{snapshotStr}{assignStr}.dfy";
         File.WriteAllText(filename, programText);
     }
 }
