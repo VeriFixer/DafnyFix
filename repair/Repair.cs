@@ -10,8 +10,9 @@ namespace Repair;
 
 public class Repair : PluginConfiguration
 {
-    private bool _mutate;
     private bool _scan;
+    private bool _mutate;
+    private bool _tmpRepair;
     private bool _analyze;
 
     private List<string> OperatorsInUse { get; set; } = [];
@@ -19,21 +20,27 @@ public class Repair : PluginConfiguration
     private int MutationTargetLine { get; set; } = -1;
     private (int, int) MutationTargetRange { get; set; } = (-1, -1);
     private string MutationTargetURI { get; set; } = "";
-    private (int, string) StateTarget { get; set; } = (-1, "");
     private int NumMutations { get; set; } = -1;
     private string? MutationTargetPos { get; set; }
     private string? MutationOperator { get; set; }
     private string? MutationArg { get; set; }
+    private (int, string, bool?) SnapshotTarget { get; set; } = (-1, "", null);
+    private string? StateTemplate { get; set; }
+    private (string, string) StateChangingTargetAssign { get; set; } = ("", "");
     
     public override void ParseArguments(string[] args) {
         if (args.Length == 0) return;
         if (args[0] == "scan") {
             _scan = true;
             ParseScanArguments(args);
-        } 
-        else if (args[0] == "mut" && args.Length >= 2) {
+        } else if (args[0] == "scanSnap") {
+            _scan = true;
+            ParseScanSnapArguments(args);
+        } else if (args[0] == "mut" && args.Length >= 2) {
             _mutate = true;
             ParseMutArguments(args);
+        } else if (args[0].StartsWith("tpl")) {
+            _tmpRepair = ParseTemplateRepairArguments(args);
         } else if (args[0] == "analyze") {
             _analyze = true;
             if (args.Length == 1) return;
@@ -55,16 +62,15 @@ public class Repair : PluginConfiguration
                 if (int.TryParse(positions[0], out var startPost) && 
                     int.TryParse(positions[1], out var endPost))
                     MutationTargetRange = (startPost, endPost);
-            } else if (arg.StartsWith("state:") && arg.Contains(',')) {
-                var snapElements = arg[6..].Split(",");
-                if (int.TryParse(snapElements[0], out var snapPos))
-                    StateTarget = (snapPos, snapElements[1]);  
             } else if (IsValidOperator(arg)) {
                 OperatorsInUse.Add(arg);
-            } else if (StateTarget != (-1, "")) {
-                StateTarget = (StateTarget.Item1, $"{StateTarget.Item2} {arg}");
             }
         }
+    }
+    
+    private void ParseScanSnapArguments(string[] args) {
+        if (args.Length < 4) return;
+        ParseSnapshotArguments(args[1..]);
     }
 
     private void ParseMutArguments(string[] args) {
@@ -85,12 +91,45 @@ public class Repair : PluginConfiguration
             }
         }
     }
+    
+    private bool ParseTemplateRepairArguments(string[] args) {
+        if (args.Length < 4 || (args[0] != "tpl1" && args[0] != "tpl3" && args.Length < 6)) return false;
+        foreach (var (arg, i) in args.Select((arg, i) => (arg, i))) {
+            if (StateTemplate == null) {
+                StateTemplate = arg;
+            } else if (StateTemplate == "tpl3" || 
+                (StateChangingTargetAssign.Item1 != "" && 
+                 StateChangingTargetAssign.Item2 != "")) {
+                ParseSnapshotArguments(args[i..]);
+            } else if (StateChangingTargetAssign.Item1 == "") {
+                StateChangingTargetAssign = (arg, StateChangingTargetAssign.Item2);
+            } else if (StateChangingTargetAssign.Item2 == "") {
+                StateChangingTargetAssign = (StateChangingTargetAssign.Item1, arg);
+            }
+        }
+        return true;
+    }
+
+    private void ParseSnapshotArguments(string[] args) {
+        foreach (var (arg, i) in args.Select((arg, i) => (arg, i))) {
+            if (SnapshotTarget.Item1 == -1) {
+                if (int.TryParse(arg, out var snapPos))
+                    SnapshotTarget = (snapPos, SnapshotTarget.Item2, SnapshotTarget.Item3);
+            } else if (SnapshotTarget.Item2 == "") {
+                SnapshotTarget = (SnapshotTarget.Item1, arg, SnapshotTarget.Item3);
+            } else if (i == args.Length - 1 && bool.TryParse(arg, out var snapVal)) {
+                SnapshotTarget = (SnapshotTarget.Item1, SnapshotTarget.Item2, snapVal);
+            } else {
+                SnapshotTarget = (SnapshotTarget.Item1, $"{SnapshotTarget.Item2} {arg}", SnapshotTarget.Item3);
+            }
+        }   
+    }
 
     public override Rewriter[] GetRewriters(ErrorReporter reporter) {
         return _mutate ? 
             [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, reporter)] : 
             _scan ? 
-                [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, MutationTargetLine, MutationTargetRange, StateTarget, OperatorsInUse, reporter)] : 
+                [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, MutationTargetLine, MutationTargetRange, SnapshotTarget, OperatorsInUse, reporter)] : 
                 [];
     }
 
@@ -109,12 +148,12 @@ public class Repair : PluginConfiguration
 }
 
 public class MutationTargetScanner(string mutationTargetURI, string mutationTargetMethod, 
-    int mutationTargetLine, (int, int) mutationTargetRange, (int, string) stateTarget, 
+    int mutationTargetLine, (int, int) mutationTargetRange, (int, string, bool?) snapshotTarget, 
     List<string> operatorsInUse, ErrorReporter reporter) 
     : Rewriter(reporter)
 {
     public static bool FirstCall = true;
-    private readonly bool _wantsStateTarget = stateTarget != (-1, "");
+    private readonly bool _wantsStateTarget = snapshotTarget != (-1, "", null);
     
     public override void PreResolve(Program program) {
         // save original code but post serialization to perform diffs
@@ -142,9 +181,9 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
     }
 
     public override void PostResolve(Program program) {
-        if (!_wantsStateTarget)
+        if (!_wantsStateTarget || snapshotTarget.Item3 == null)
             return;
-        var stateTemplateTargetScanner = new StateTemplateTargetScanner(stateTarget.Item1, stateTarget.Item2);
+        var stateTemplateTargetScanner = new StateTemplateTargetScanner(snapshotTarget.Item1, snapshotTarget.Item2, (bool)snapshotTarget.Item3);
         stateTemplateTargetScanner.ScanStateBasedTemplates();
         stateTemplateTargetScanner.ExportTargets();
     }

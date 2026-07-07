@@ -4,7 +4,7 @@ using Type = Microsoft.Dafny.Type;
 
 namespace Repair.Templates;
 
-public class StateTemplateTargetScanner(int targetStatePos, string targetStatePred) 
+public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred, bool snapTargetVal) 
 {
     protected List<List<string>> Targets { get; } = [];
     private static readonly List<string> _templates = ["tpl1", "tpl2", "tpl3", "tpl4"];
@@ -13,7 +13,7 @@ public class StateTemplateTargetScanner(int targetStatePos, string targetStatePr
         var snapPredSubexpressions = FindVarSnapPredSubexpressions();
         foreach (var template in _templates) {
             if (template == "tpl3") {
-                Targets.Add([$"{targetStatePos}", template]);
+                Targets.Add([template, $"{snapTargetPos}", snapTargetPred, $"{snapTargetVal}"]);
                 continue;
             }
             foreach (var (var, type) in snapPredSubexpressions) {
@@ -37,17 +37,20 @@ public class StateTemplateTargetScanner(int targetStatePos, string targetStatePr
                         }
                         break;
                 }
-                Targets.Add([$"{targetStatePos}", template, var, typeStr]);
+                List<string> newTarget = [template, var, typeStr, $"{snapTargetPos}"];
+                if (template != "tpl1")
+                    newTarget.AddRange([snapTargetPred, $"{snapTargetVal}"]);
+                Targets.Add(newTarget);
             }
         }
     }
 
     private List<(string, Type)> FindVarSnapPredSubexpressions() {
-        var tokens = targetStatePred.Split([' ', '(', ')'], StringSplitOptions.RemoveEmptyEntries);
+        var tokens = snapTargetPred.Split([' ', '(', ')'], StringSplitOptions.RemoveEmptyEntries);
         return PostResolveTargetScanner.AssignableIdentifiers
             .Where(id => tokens.Contains(id.Item1) && 
-                         id.Item3 <= targetStatePos && 
-                         id.Item4 >= targetStatePos)
+                         id.Item3 <= snapTargetPos && 
+                         id.Item4 >= snapTargetPos)
             .Select(id => (id.Item1, id.Item2)).ToList();
     }
     
