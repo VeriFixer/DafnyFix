@@ -24,8 +24,8 @@ public class Repair : PluginConfiguration
     private string? MutationTargetPos { get; set; }
     private string? MutationOperator { get; set; }
     private string? MutationArg { get; set; }
-    private (int, string, bool?) SnapshotTarget { get; set; } = (-1, "", null);
     private string? StateTemplate { get; set; }
+    private (int, string, bool?) SnapshotTarget { get; set; } = (-1, "", null);
     private (string, string) StateChangingTargetAssign { get; set; } = ("", "");
     
     public override void ParseArguments(string[] args) {

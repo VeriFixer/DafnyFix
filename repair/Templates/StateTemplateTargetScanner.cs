@@ -6,7 +6,7 @@ namespace Repair.Templates;
 
 public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred, bool snapTargetVal) 
 {
-    protected List<List<string>> Targets { get; } = [];
+    private List<List<string>> Targets { get; } = [];
     private static readonly List<string> _templates = ["tpl1", "tpl2", "tpl3", "tpl4"];
 
     public void ScanStateBasedTemplates() {
