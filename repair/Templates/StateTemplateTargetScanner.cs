@@ -21,6 +21,7 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
                 switch (type) {
                     case IntType: typeStr = "int"; break;
                     case RealType: typeStr = "real"; break;
+                    case BoolType: typeStr = "bool"; break;
                     case BitvectorType: typeStr = "bv"; break;
                     case CharType: typeStr = "char"; break;
                     case SetType: typeStr = "set"; break;
