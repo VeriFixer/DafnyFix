@@ -52,7 +52,9 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
             .Where(id => tokens.Contains(id.Item1) && 
                          id.Item3 <= snapTargetPos && 
                          id.Item4 >= snapTargetPos)
-            .Select(id => (id.Item1, id.Item2)).ToList();
+            .Select(id => (id.Item1, id.Item2))
+            .DistinctBy(id => id.Item1)
+            .ToList();
     }
     
     public void ExportTargets() {
