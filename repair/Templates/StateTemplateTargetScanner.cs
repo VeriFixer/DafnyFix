@@ -47,7 +47,7 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     }
 
     private List<(string, Type)> FindVarSnapPredSubexpressions() {
-        var tokens = snapTargetPred.Split([' ', '(', ')'], StringSplitOptions.RemoveEmptyEntries);
+        var tokens = snapTargetPred.Split([' ', '!', '-', '(', ')', '[', ']'], StringSplitOptions.RemoveEmptyEntries);
         return PostResolveTargetScanner.AssignableIdentifiers
             .Where(id => tokens.Contains(id.Item1) && 
                          id.Item3 <= snapTargetPos && 
