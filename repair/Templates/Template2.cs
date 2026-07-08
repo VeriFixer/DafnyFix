@@ -7,6 +7,21 @@ public class Template2(int snapTargetPos, string snapTargetPred, bool snapTarget
     : StateChangingAssignTemplate(snapTargetPos, snapTargetPred, stateChangingTargetAssignVar, stateChangingTargetAssignType, reporter)
 {
     protected override void InstantiateTemplate() {
-        throw new NotImplementedException();
+        if (SuspiciousStmt == null || SuspiciousBlockStmt == null || SnapTargetPred == null)
+            return;
+
+        var assign = CreateStateChangingAssignment();
+        var faultyStmtIdx = SuspiciousBlockStmt.Body.IndexOf(SuspiciousStmt);
+        if (assign == null || faultyStmtIdx == -1) 
+            return;
+        
+        var snapTargetValLiteral = new LiteralExpr(null, snapTargetVal);
+        var ifSnapPredStmtGuard = new BinaryExpr(null, 
+            BinaryExpr.Opcode.Eq, SnapTargetPred, snapTargetValLiteral);
+        var ifSnapPredStmtBody = new BlockStmt(null, [assign]);
+        var ifSnapPredStmt = new IfStmt(null, 
+            false, ifSnapPredStmtGuard, 
+            ifSnapPredStmtBody, null);
+        SuspiciousBlockStmt.Body.Insert(faultyStmtIdx, ifSnapPredStmt);
     }
 }
