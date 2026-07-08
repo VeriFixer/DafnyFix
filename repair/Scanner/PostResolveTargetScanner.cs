@@ -644,7 +644,7 @@ public class PostResolveTargetScanner(string mutationTargetURI,
             if (lhs is NameSegment nSegExpr) {
                 if (!_currentScopeVars.ContainsKey(nSegExpr.Name))
                     _currentScopeVars.Add(nSegExpr.Name, nSegExpr.Type);
-                AssignableIdentifiers.Add((nSegExpr.Name, nSegExpr.Type, lhs.EndToken.line, _currentScope.Item2?.line ?? -1));
+                AssignableIdentifiers.Add((nSegExpr.Name, nSegExpr.Type, lhs.EndToken.line + 1, _currentScope.Item2?.line ?? -1));
             }
         }
     }
@@ -684,7 +684,7 @@ public class PostResolveTargetScanner(string mutationTargetURI,
                            String.Join(",", aStmt1.Rhss) != String.Join(",", aStmt2.Rhss);
         
         foreach (var (var, i) in vDeclStmt.Locals.Select((var, i) => (var, i)).ToList()) {
-            AssignableIdentifiers.Add((var.Name, var.Type, var.EndToken.line, _currentScope.Item2?.line ?? -1));
+            AssignableIdentifiers.Add((var.Name, var.Type, var.EndToken.line + 1, _currentScope.Item2?.line ?? -1));
             if (canApplySWV && var.Type.ToString() != _prevVarDeclStmt?.Locals[i].Type.ToString())
                 canApplySWV = false;
             
