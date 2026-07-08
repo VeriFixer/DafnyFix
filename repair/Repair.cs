@@ -320,7 +320,9 @@ public class StateTemplateInstantiator(string templateType, (int, string, bool?)
         printer.PrintProgram(program, false);
         var programText = stringWriter.ToString();
 
-        var filename = Path.GetFileNameWithoutExtension(program.Name)[..^21]; // remove __instrumented_helper
+        var filename = program.Name.Contains("__instrumented_helper") ? 
+            Path.GetFileNameWithoutExtension(program.Name)[..^21] : // remove __instrumented_helper
+            Path.GetFileNameWithoutExtension(program.Name);
         var snapshotStr = $"{snapshotTarget.Item1}{(templateType != "tpl1" ? 
             $"_{snapshotTarget.Item2}_{snapshotTarget.Item3}" : "")}";
         var assignStr = templateType != "tpl3" ? $"__{stateChangingTargetAssign.Item1}" : "";
