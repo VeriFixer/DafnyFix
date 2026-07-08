@@ -31,6 +31,7 @@ public abstract class Template(int snapTargetPos, string snapTargetPred, ErrorRe
         {
             SuspiciousStmt = stmt;
             SuspiciousBlockStmt = _currentBlockStmt;
+            if (stmt is VarDeclStmt) return;
         }
         base.HandleStatement(stmt);
     }
@@ -44,7 +45,7 @@ public abstract class Template(int snapTargetPos, string snapTargetPred, ErrorRe
         base.HandleBlock(blockStmt);
         
         if (_toRemoveHelperPrintStmt != (null, null) && _toRemoveHelperPrintStmt.Item1 == blockStmt) {
-            var res = blockStmt.Body.Remove(_toRemoveHelperPrintStmt.Item2);
+            blockStmt.Body.Remove(_toRemoveHelperPrintStmt.Item2);
             _toRemoveHelperPrintStmt = (null, null);
         }
         _currentBlockStmt = prevCurrentBlockStmt;
