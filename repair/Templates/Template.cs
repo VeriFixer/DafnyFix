@@ -11,6 +11,9 @@ public abstract class Template(int snapTargetPos, string snapTargetPred, ErrorRe
     private (BlockStmt?, PrintStmt?) _toRemoveHelperPrintStmt;
     
     public void InstantiateTemplate(Program program) {
+        if (this is not Template1) 
+            snapTargetPos++; // 1 offset due to inserted helper print stmt 
+        
         base.Find(program);
         InstantiateTemplate();
     }
@@ -26,8 +29,8 @@ public abstract class Template(int snapTargetPos, string snapTargetPred, ErrorRe
             return;
         }
         
-        if (stmt.StartToken.line  <= snapTargetPos + 1 && 
-            stmt.EndToken.line >= snapTargetPos + 1) // 1 offset due to inserted helper print stmt 
+        if (stmt.StartToken.line  <= snapTargetPos && 
+            stmt.EndToken.line >= snapTargetPos)
         {
             SuspiciousStmt = stmt;
             SuspiciousBlockStmt = _currentBlockStmt;

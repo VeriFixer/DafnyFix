@@ -199,6 +199,7 @@ for line in "${lines[@]}"; do
         break
     fi
 done
+IFS=$' \t\n'
 echo
 
 
