@@ -36,6 +36,7 @@ PROGRAM=$1;
 PROGRAM="$(cd "$(dirname "$PROGRAM")" && pwd)/$(basename "$PROGRAM")" # Get full path
 MIN_LINES_TO_EXPLORE=3
 MIN_PERCENTAGE_TO_EXPLORE=15
+REPAIR_FILE=""
 OUT_DIR="$SCRIPT_DIR/repairs"
 
 # ------------------------------------------------------------------------------ Setup
@@ -77,10 +78,14 @@ gen_tests() {
 }
 
 scan_program() {
-    local line="$1"
+    local arg="$1"
+    local program="$2"
+    if [[ -z "$program" ]]; then
+        program=$PROGRAM
+    fi
 
-    dotnet "$DAFNY_BIN" verify "$PROGRAM" --allow-warnings \
-        --plugin "$REPAIR_BIN","scan line:$line" > /dev/null
+    dotnet "$DAFNY_BIN" verify "$program" --allow-warnings \
+        --plugin "$REPAIR_BIN","scan $arg" > /dev/null
 }
 
 scan_state_template_repairs() {
@@ -93,6 +98,11 @@ scan_state_template_repairs() {
 }
 
 mutate_program() {
+    local program="$1"
+    if [[ -z "$program" ]]; then
+        program=$PROGRAM
+    fi
+
     IFS=','
     while read pos op arg;
     do
@@ -102,7 +112,7 @@ mutate_program() {
             echo Mutating position $pos: operator $op, argument $arg
         fi
 
-        output=$(dotnet "$DAFNY_BIN" verify "$PROGRAM" --allow-warnings \
+        output=$(dotnet "$DAFNY_BIN" verify "$program" --allow-warnings \
             --plugin "$REPAIR_BIN","mut $pos $op $arg" 2>/dev/null)
         mutant_outcome_msg=$(process_output "$output")
         echo $mutant_outcome_msg
@@ -138,11 +148,29 @@ apply_repair_templates() {
         if [ "$instrumented_program" != "$PROGRAM" ]; then
             rm "$instrumented_program"
         fi
-        repair_outcome_msg=$(process_output "$output")
-        echo $repair_outcome_msg
-        echo
+        process_output "$output"
+        sed -i '1,2d' "$REPAIR_FILE"
+        mutate_repair_template
         rm elapsed-time.csv
-    done < targets.csv
+    done < template-targets.csv
+}
+
+mutate_repair_template() {
+    diff=$(diff -Z $REPAIR_FILE $PROGRAM)
+    context_lines=$(echo "$diff" | grep -v '^[<>-]')
+    
+    while IFS= read -r context_line; do
+        repair_lines=$(echo "$context_line" | sed 's/[adc].*//' | sed 's/,/-/g')
+        if [[ "$repair_lines" == *-* ]]; then
+            scan_arg="lineRange:$repair_lines"
+        else
+            scan_arg="line:$repair_lines"
+        fi
+
+        scan_program "$scan_arg" "$REPAIR_FILE"
+        mutate_program "$REPAIR_FILE"
+        rm targets.csv
+    done <<< "$context_lines"
 }
 
 process_output() {
@@ -152,11 +180,14 @@ process_output() {
     verified=$(echo $output | grep "Dafny program verifier finished.*0 errors")
     timed_out=$(echo $output | grep "Dafny program verifier finished.*time out")
     output=$(echo $output | tail -1)
+    REPAIR_FILE=""
 
     COLOR='\033[0;31m'; if [[ -n $verified ]]; then COLOR='\033[0;32m'; fi
     if [[ -z $verification_finished ]]; then # verification did not finish due to invalid program
         echo -e "${COLOR}Repair is invalid\033[0m"
         if [ -f *.dfy ]; then
+            REPAIR_FILE=$(basename *.dfy)
+            REPAIR_FILE="$OUT_DIR/failed-repairs/invalid/$REPAIR_FILE"
             mv *.dfy "$OUT_DIR/failed-repairs/invalid"
         fi
     elif [ -f *.dfy ]; then
@@ -173,6 +204,8 @@ process_output() {
             output_dir="$OUT_DIR/failed-repairs/valid"
         fi
 
+        REPAIR_FILE=$(basename *.dfy)
+        REPAIR_FILE="$output_dir/$REPAIR_FILE"
         mv *.dfy $output_dir
     fi
 }
@@ -190,7 +223,7 @@ lines_explored=0
 exam_num_lines=$(( (length * MIN_PERCENTAGE_TO_EXPLORE + 50) / 100 ))
 for line in "${lines[@]}"; do
     echo "Scanning mutation targets for program line $line"
-    scan_program $line
+    scan_program "line:$line"
     mutate_program
     rm targets.csv
 
@@ -219,6 +252,7 @@ for snapshot in "${snapshots[@]}"; do
 
     echo "Scanning state-based template repairs for snapshot ($line, $pred, $value)"
     scan_state_template_repairs "$line" "$pred" "$value"
+    mv targets.csv template-targets.csv
     apply_repair_templates
-    rm targets.csv
+    rm template-targets.csv
 done
