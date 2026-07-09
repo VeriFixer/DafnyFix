@@ -6,9 +6,9 @@ using Type = Microsoft.Dafny.Type;
 namespace Repair.Scanner;
 
 public class PostResolveTargetScanner(string mutationTargetURI, 
-    int mutationTargetLine, (int, int) mutationTargetRange, 
+    int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
     bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter) 
-    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetRange, wantsStateTarget, operatorsInUse, reporter)
+    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, wantsStateTarget, operatorsInUse, reporter)
 {
     private bool _skipChildUOIMutation;
     private bool _skipChildEVRMutation;

@@ -3,10 +3,10 @@ using Microsoft.Dafny;
 
 namespace Repair.Scanner;
 
-public class PreResolveTargetScanner(string mutationTargetURI, 
-    string mutationTargetMethod, int mutationTargetLine, (int, int) mutationTargetRange, 
+public class PreResolveTargetScanner(string mutationTargetURI, string mutationTargetMethod, 
+    int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
     bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter)
-    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetRange, wantsStateTarget, operatorsInUse, reporter)
+    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, wantsStateTarget, operatorsInUse, reporter)
 {
     private List<string> _coveredVariableNames = [];
     private List<string> _prevCoveredVariableNames = [];
@@ -366,7 +366,9 @@ public class PreResolveTargetScanner(string mutationTargetURI,
             if (member is not ConstantField cf) continue;
             OriginalFields.Add(cf);
             
-            if (!ShouldImplement("VDL") || mutationTargetMethod != "" || mutationTargetRange != (-1, -1) || mutationTargetLine != -1)
+            if (!ShouldImplement("VDL") || mutationTargetMethod != "" || 
+                mutationTargetLineRange != (-1, -1) || mutationTargetPosRange != (-1, -1) ||
+                mutationTargetLine != -1)
                 break;
             _varsToDelete.Add(cf.Name);
             AddTarget(($"{_currentScope.Item1?.pos}-{_currentScope.Item2?.pos}", "VDL", cf.Name));
@@ -712,7 +714,8 @@ public class PreResolveTargetScanner(string mutationTargetURI,
         }
         
         if (ShouldImplement("ODL") && !CoveredOperators.Contains(bExpr.Op) &&
-            mutationTargetMethod == "" && mutationTargetRange == (-1, -1) && mutationTargetLine == -1) 
+            mutationTargetMethod == "" && mutationTargetLineRange == (-1, -1) && 
+            mutationTargetPosRange == (-1, -1) && mutationTargetLine == -1) 
         {
             CoveredOperators.Add(bExpr.Op);
             AddTarget(("-", "ODL", $"{bExpr.Op.ToString()}-left"));

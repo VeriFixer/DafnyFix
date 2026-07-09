@@ -5,7 +5,7 @@ using Repair.Visitor;
 namespace Repair.Scanner;
 
 public abstract class TargetScanner(string mutationTargetURI, 
-    int mutationTargetLine, (int, int) mutationTargetRange, 
+    int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
     bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter) 
     : Visitor.Visitor("-1", reporter)
 {
@@ -106,23 +106,32 @@ public abstract class TargetScanner(string mutationTargetURI,
     
     protected bool IsIncludedInTarget(Token? start, Token? end) {
         if (start == null || end == null)
-            return mutationTargetLine == -1 && mutationTargetRange is { Item1: -1, Item2: -1 };
+            return mutationTargetLine == -1 && 
+                   mutationTargetLineRange == (-1, -1) && 
+                   mutationTargetPosRange == (-1, -1);
+        
         if (mutationTargetLine != -1)
             return mutationTargetLine == start.line && mutationTargetLine == end.line;
-        if (mutationTargetRange is not { Item1: -1, Item2: -1 })
-            return mutationTargetRange.Item1 <= start.pos && 
-                   mutationTargetRange.Item2 >= end.pos;
+        if (mutationTargetLineRange != (-1, -1))
+            return mutationTargetLineRange.Item1 <= start.line &&
+                   mutationTargetLineRange.Item2 >= end.line;
+        if (mutationTargetPosRange != (-1, -1))
+            return mutationTargetPosRange.Item1 <= start.pos && 
+                   mutationTargetPosRange.Item2 >= end.pos;
         return true;
     }
     
     protected bool IsIncludedInTarget(Token? token) {
         if (token == null)
-            return mutationTargetLine == -1 && mutationTargetRange is { Item1: -1, Item2: -1 };
+            return mutationTargetLine == -1 && mutationTargetPosRange == (-1, -1);
         if (mutationTargetLine != -1)
             return mutationTargetLine == token.line;
-        if (mutationTargetRange is not { Item1: -1, Item2: -1 })
-            return mutationTargetRange.Item1 <= token.pos && 
-                   mutationTargetRange.Item2 >= token.pos;
+        if (mutationTargetLineRange != (-1, -1))
+            return mutationTargetLineRange.Item1 <= token.line &&
+                   mutationTargetLineRange.Item2 >= token.line;
+        if (mutationTargetPosRange != (-1, -1))
+            return mutationTargetPosRange.Item1 <= token.pos && 
+                   mutationTargetPosRange.Item2 >= token.pos;
         return true;
     }
     

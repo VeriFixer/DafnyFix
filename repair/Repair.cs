@@ -18,7 +18,8 @@ public class Repair : PluginConfiguration
     private List<string> OperatorsInUse { get; set; } = [];
     private string MutationTargetMethod { get; set; } = "";
     private int MutationTargetLine { get; set; } = -1;
-    private (int, int) MutationTargetRange { get; set; } = (-1, -1);
+    private (int, int) MutationTargetLineRange { get; set; } = (-1, -1);
+    private (int, int) MutationTargetPosRange { get; set; } = (-1, -1);
     private string MutationTargetURI { get; set; } = "";
     private int NumMutations { get; set; } = -1;
     private string? MutationTargetPos { get; set; }
@@ -57,11 +58,16 @@ public class Repair : PluginConfiguration
                 MutationTargetMethod = arg[7..];
             } else if (arg.StartsWith("line:")) {
                 MutationTargetLine = int.Parse(arg[5..]);
-            } else if (arg.StartsWith("range:") && arg.Contains('-')) {
-                var positions = arg[6..].Split("-");
+            } else if (arg.StartsWith("lineRange:") && arg.Contains('-')) {
+                var positions = arg[10..].Split("-");
+                if (int.TryParse(positions[0], out var startPost) &&
+                    int.TryParse(positions[1], out var endPost))
+                    MutationTargetLineRange = (startPost, endPost);
+            } else if (arg.StartsWith("posRange:") && arg.Contains('-')) {
+                var positions = arg[9..].Split("-");
                 if (int.TryParse(positions[0], out var startPost) && 
                     int.TryParse(positions[1], out var endPost))
-                    MutationTargetRange = (startPost, endPost);
+                    MutationTargetPosRange = (startPost, endPost);
             } else if (IsValidOperator(arg)) {
                 OperatorsInUse.Add(arg);
             }
@@ -130,7 +136,9 @@ public class Repair : PluginConfiguration
         return _mutate ? [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, reporter)] : 
             _tmpRepair ? [new StateTemplateInstantiator(StateTemplate, SnapshotTarget, StateChangingTargetAssign, reporter)] :
             _scan ? 
-                [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, MutationTargetLine, MutationTargetRange, SnapshotTarget, OperatorsInUse, reporter)] : 
+                [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, 
+                    MutationTargetLine, MutationTargetLineRange, MutationTargetPosRange, 
+                    SnapshotTarget, OperatorsInUse, reporter)] : 
                 [];
     }
 
@@ -149,8 +157,8 @@ public class Repair : PluginConfiguration
 }
 
 public class MutationTargetScanner(string mutationTargetURI, string mutationTargetMethod, 
-    int mutationTargetLine, (int, int) mutationTargetRange, (int, string, bool?) snapshotTarget, 
-    List<string> operatorsInUse, ErrorReporter reporter) 
+    int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
+    (int, string, bool?) snapshotTarget, List<string> operatorsInUse, ErrorReporter reporter) 
     : Rewriter(reporter)
 {
     public static bool FirstCall = true;
@@ -165,8 +173,8 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
         var specHelperFinder = new SpecHelperFinder(Reporter);
         specHelperFinder.Find(module);
         
-        var targetScanner = new PreResolveTargetScanner(mutationTargetURI, 
-            mutationTargetMethod, mutationTargetLine, mutationTargetRange, 
+        var targetScanner = new PreResolveTargetScanner(mutationTargetURI, mutationTargetMethod, 
+            mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, 
             _wantsStateTarget, operatorsInUse, Reporter);
         targetScanner.Find(module);
         targetScanner.ExportTargets();
@@ -174,7 +182,7 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
 
     public override void PostResolve(ModuleDefinition module) {
         var targetScanner = new PostResolveTargetScanner(mutationTargetURI, 
-            mutationTargetLine, mutationTargetRange, 
+            mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, 
             _wantsStateTarget, operatorsInUse, Reporter);
         targetScanner.Find(module);
         targetScanner.ExportTargets();
