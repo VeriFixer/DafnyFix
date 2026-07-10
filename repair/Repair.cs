@@ -335,6 +335,7 @@ public class StateTemplateInstantiator(string templateType, (int, string, bool?)
             $"_{snapshotTarget.Item2}_{snapshotTarget.Item3}" : "")}";
         var assignStr = templateType != "tpl3" ? $"__{stateChangingTargetAssign.Item1}" : "";
         filename += $"__{templateType}__{snapshotStr}{assignStr}.dfy";
+        filename = filename.Replace('/', '\\');
         File.WriteAllText(filename, programText);
     }
 }
