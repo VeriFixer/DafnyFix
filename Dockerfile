@@ -31,7 +31,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget sudo make build-essential unzip zip \
       python3 python3-pip python3-venv libicu-dev tzdata \
-      git openssh-client openjdk-17-jdk ant rsync \
+      git openssh-client openjdk-17-jdk ant rsync parallel bc \
     && rm -rf /var/lib/apt/lists/*
 
 # .NET SDK 8

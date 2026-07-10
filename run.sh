@@ -6,6 +6,7 @@
 # Usage:
 # run.sh
 #   <full path to the program under repair, e.g., $SCRIPT_DIR/dataset/abs.dfy> 
+#   [--run_dir <the directory where the script should be run, e.g., $SCRIPT_DIR (by deafult)>]
 #   [help]
 # ------------------------------------------------------------------------------ General utils
 
@@ -26,18 +27,39 @@ die() {
 
 USAGE="Usage: ${BASH_SOURCE[0]}
     <full path to the program under repair, e.g., $SCRIPT_DIR/dataset/abs.dfy> 
+    [--run_dir <the directory where the script should be run, e.g., $SCRIPT_DIR (by deafult)>]
     [help]"
 
-if [ "$#" -ne "1" ] || [ "$1" = "--help" ]; then
+if [ "$#" -ne "1" ] && [ "$#" -ne "3" ]; then
   die "$USAGE"
+fi
+if [ "$#" -eq "1" ] && [ "$1" = "--help" ]; then
+    echo "$USAGE"
+    exit 0
 fi
 
 PROGRAM=$1;
 PROGRAM="$(cd "$(dirname "$PROGRAM")" && pwd)/$(basename "$PROGRAM")" # Get full path
+shift
 MIN_LINES_TO_EXPLORE=3
 MIN_PERCENTAGE_TO_EXPLORE=15
 REPAIR_FILE=""
 OUT_DIR="$SCRIPT_DIR/repairs"
+RUN_DIR="$SCRIPT_DIR"
+
+while [[ "$1" = --* ]]; do
+  OPTION=$1; shift
+  case $OPTION in
+    (--run_dir)
+      RUN_DIR=$1;
+      shift;;
+    (--help)
+      echo "$USAGE";
+      exit 0;;
+    (*)
+      die "$USAGE";;
+  esac
+done
 
 # ------------------------------------------------------------------------------ Setup
 
@@ -47,6 +69,7 @@ mkdir -p "$OUT_DIR/failed-repairs/"
 mkdir -p "$OUT_DIR/failed-repairs/valid"
 mkdir -p "$OUT_DIR/failed-repairs/invalid"
 mkdir -p "$OUT_DIR/failed-repairs/timed-out"
+mkdir -p "$RUN_DIR"
 
 # ------------------------------------------------------------------------------ Utils
 
@@ -57,10 +80,10 @@ run_cntm_fault_localization() {
 }
 
 run_snap_fault_localization() {
-    test_file=$(gen_tests)
+    gen_tests
     output=$(python $STATE_FAULT_LOC_SCRIPT "$PROGRAM")
     predictions=$(echo "$output" | grep Predictions | sed 's/.*\[\(.*\)\]/\1/')
-    echo $predictions
+    echo "$predictions"
 }
 
 gen_tests() {
@@ -73,8 +96,6 @@ gen_tests() {
             --grouping by-status --skip-on-exception --comment-uncompilable -n 20
         sed -i '1,5d' "$test_file"
     fi
-
-    echo $test_file
 }
 
 scan_program() {
@@ -149,6 +170,8 @@ apply_repair_templates() {
             rm "$instrumented_program"
         fi
         process_output "$output"
+        echo
+        
         sed -i '1,2d' "$REPAIR_FILE"
         mutate_repair_template
         rm elapsed-time.csv
@@ -212,6 +235,8 @@ process_output() {
 
 # ------------------------------------------------------------------------------ Main
 
+pushd . > /dev/null 2>&1
+cd "$RUN_DIR"
 # Basic fault localization
 echo "Running fault localization on $PROGRAM"
 predictions=$(run_cntm_fault_localization)
@@ -256,3 +281,8 @@ for snapshot in "${snapshots[@]}"; do
     apply_repair_templates
     rm template-targets.csv
 done
+popd > /dev/null 2>&1
+
+echo "[INFO] Job finished"
+echo "DONE!"
+exit 0
