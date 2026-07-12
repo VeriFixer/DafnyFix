@@ -75,14 +75,14 @@ mkdir -p "$RUN_DIR"
 
 run_cntm_fault_localization() {
     output=$(python $FAULT_LOC_SCRIPT CNTM "$PROGRAM")
-    predictions=$(echo "$output" | grep Predictions | sed 's/.*\[\(.*\)\]/\1/')
+    predictions=$(echo "$output" | grep Predictions | cut -d ':' -f 2 | sed -n 's/^[^[]*\[\(.*\)\][^]]*$/\1/p')
     echo $predictions
 }
 
 run_snap_fault_localization() {
     gen_tests
     output=$(python $STATE_FAULT_LOC_SCRIPT "$PROGRAM")
-    predictions=$(echo "$output" | grep Predictions | sed 's/.*\[\(.*\)\]/\1/')
+    predictions=$(echo "$output" | grep 'Predictions' | cut -d ':' -f 2 | sed -n 's/^[^[]*\[\(.*\)\][^]]*$/\1/p')
     echo "$predictions"
 }
 
@@ -237,6 +237,7 @@ process_output() {
 
 pushd . > /dev/null 2>&1
 cd "$RUN_DIR"
+
 # Basic fault localization
 echo "Running fault localization on $PROGRAM"
 predictions=$(run_cntm_fault_localization)
@@ -281,8 +282,8 @@ for snapshot in "${snapshots[@]}"; do
     apply_repair_templates
     rm template-targets.csv
 done
-popd > /dev/null 2>&1
 
+popd > /dev/null 2>&1
 echo "[INFO] Job finished"
 echo "DONE!"
 exit 0
