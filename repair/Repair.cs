@@ -162,7 +162,6 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
     : Rewriter(reporter)
 {
     public static bool FirstCall = true;
-    private readonly bool _wantsStateTarget = snapshotTarget != (-1, "", null);
     
     public override void PreResolve(Program program) {
         var specHelperFinder = new SpecHelperFinder(Reporter);
@@ -170,7 +169,7 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
         
         var targetScanner = new PreResolveTargetScanner(mutationTargetURI, mutationTargetMethod, 
             mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, 
-            _wantsStateTarget, snapshotTarget.Item2, operatorsInUse, Reporter);
+            snapshotTarget, operatorsInUse, Reporter);
         targetScanner.Find(program);
         targetScanner.ExportTargets();
         
@@ -181,14 +180,14 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
     public override void PostResolve(ModuleDefinition module) {
         var targetScanner = new PostResolveTargetScanner(mutationTargetURI, 
             mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, 
-            _wantsStateTarget, operatorsInUse, Reporter);
+            snapshotTarget, operatorsInUse, Reporter);
         targetScanner.Find(module);
         targetScanner.ExportTargets();
         FirstCall = false;
     }
 
     public override void PostResolve(Program program) {
-        if (!_wantsStateTarget || snapshotTarget.Item3 == null)
+        if (snapshotTarget == (-1, "", null) || snapshotTarget.Item3 == null)
             return;
         var stateTemplateTargetScanner = new StateTemplateTargetScanner(
             snapshotTarget.Item1, snapshotTarget.Item2, 

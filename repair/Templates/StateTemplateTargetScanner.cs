@@ -8,17 +8,21 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     : Visitor.Visitor("-1", reporter)
 {
     private List<List<string>> Targets { get; } = [];
-    private static readonly List<string> _templates = ["tpl1", "tpl2", "tpl3", "tpl4"];
+    private static readonly List<string> _assignChangingTemplates = ["tpl1", "tpl2", "tpl4"];
+    public static Node? SuspiciousNode;
     public static Expression? SnapTargetPred;
     private readonly List<string> _snapTargetPred = [];
 
     public void ScanStateBasedTemplates() {
+        Targets.Add(["tpl3", $"{snapTargetPos}", snapTargetPred, $"{snapTargetVal}"]);
+        ScanAssignChangingTemplates();
+        ScanExprUpdatingTemplates();
+    }
+
+    private void ScanAssignChangingTemplates() {
         var snapPredSubexpressions = FindVarSnapPredSubexpressions();
-        foreach (var template in _templates) {
-            if (template == "tpl3") {
-                Targets.Add([template, $"{snapTargetPos}", snapTargetPred, $"{snapTargetVal}"]);
-                continue;
-            }
+        
+        foreach (var template in _assignChangingTemplates) {
             foreach (var (var, type) in snapPredSubexpressions) {
                 var typeStr = "";
                 switch (type) {
@@ -34,7 +38,7 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
                     case UserDefinedType uType:
                         if (uType.Name == "nat") {
                             typeStr = "int";
-                        } else if (uType.Name == "string") { // string type
+                        } else if (uType.Name == "string") {
                             typeStr = "string";
                         } else if (type.IsArrayType) {
                             typeStr = "array";
@@ -48,12 +52,24 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
             }
         }
     }
-    
-    public void ExportTargets() {
-        using StreamWriter sw = File.CreateText("targets.csv");
-        foreach (var target in Targets) {
-            var line = string.Join(",", target);
-            sw.WriteLine(line);
+
+    private void ScanExprUpdatingTemplates() {
+        if (SnapTargetPred is not BinaryExpr bExpr) return;
+        
+        var updatingCandidateNodes = GetUpdatingCandidateNodes();
+        foreach (var candidate in updatingCandidateNodes) {
+            var suspiciousExpr = FindSuspiciousExpr(candidate, bExpr.E0);
+            if (suspiciousExpr != null) {
+                var toReplaceExpr = bExpr.E0.ToString();
+                var replacementExpr = bExpr.E1.ToString();
+                Targets.Add(["tpl5", $"{snapTargetPos}", toReplaceExpr, replacementExpr]);
+            }
+            suspiciousExpr = FindSuspiciousExpr(candidate, bExpr.E1);
+            if (suspiciousExpr != null) {
+                var replacementPos = bExpr.E1.ToString();
+                var replacementExpr = bExpr.E0.ToString();
+                Targets.Add(["tpl5", $"{snapTargetPos}", replacementPos, replacementExpr]);
+            }
         }
     }
 
@@ -72,5 +88,46 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     protected override void VisitExpression(NameSegment nSegExpr) {
         _snapTargetPred.Add(nSegExpr.Name);
         base.VisitExpression(nSegExpr);
+    }
+
+    private List<Node> GetUpdatingCandidateNodes() {
+        return SuspiciousNode switch {
+            IfStmt { Guard: not null } ifStmt => [ifStmt.Guard],
+            WhileStmt whileStmt => [whileStmt.Guard],
+            ForLoopStmt forStmt => [forStmt.Start, forStmt.End],
+            _ => SuspiciousNode != null ? [SuspiciousNode] : []
+        };
+    }
+
+    private Node? FindSuspiciousExpr(Node rootNode, Expression snapTargetPredHS) {
+        if (rootNode.ToString() == snapTargetPredHS.ToString()) 
+            return rootNode;
+        
+        List<INode> children;
+        if (rootNode is AssignStatement aStmt) {
+            children = aStmt.Rhss.Concat(aStmt.Rhss.SelectMany(rhs => rhs.Children)).ToList();
+        } else if (rootNode is VarDeclStmt vDeclStmt) {
+            children = vDeclStmt.Assign != null ? [vDeclStmt.Assign] : [];
+        } else {
+            children = new List<INode>(rootNode.Children);
+            if (rootNode is ParensExpression parensExpr) 
+                children.Add(parensExpr.E);
+        }
+        
+        foreach (var child in children) {
+            if (child is not Node childNode) continue;
+            var suspiciousExpr = FindSuspiciousExpr(childNode, snapTargetPredHS);
+            if (suspiciousExpr != null && suspiciousExpr is Expression)
+                return suspiciousExpr;
+        }
+        return null;
+    }
+    
+    public void ExportTargets() {
+        using StreamWriter sw = File.CreateText("targets.csv");
+        foreach (var target in Targets) {
+            var line = string.Join(",", target);
+            sw.WriteLine(line);
+        }
     }
 }

@@ -6,8 +6,8 @@ namespace Repair.Scanner;
 
 public class PreResolveTargetScanner(string mutationTargetURI, string mutationTargetMethod, 
     int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
-    bool wantsStateTarget, string snapTargetPred, List<string> operatorsInUse, ErrorReporter reporter)
-    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, wantsStateTarget, operatorsInUse, reporter)
+    (int, string, bool?) snapshotTarget, List<string> operatorsInUse, ErrorReporter reporter)
+    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, snapshotTarget, operatorsInUse, reporter)
 {
     private List<string> _coveredVariableNames = [];
     private List<string> _prevCoveredVariableNames = [];
@@ -406,12 +406,21 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     /// -------------------------------------
     protected override void HandleStatement(Statement stmt) {
         if (stmt is PrintStmt prtStmt && StateTemplateTargetScanner.SnapTargetPred == null && 
-            snapTargetPred != "" && prtStmt.Args[0].ToString() == snapTargetPred)
+            snapshotTarget.Item2 != "" && prtStmt.Args[0].ToString() == snapshotTarget.Item2)
         {
             StateTemplateTargetScanner.SnapTargetPred = prtStmt.Args[0];
             _toRemoveHelperPrintStmt = (_currentBlockStmt, prtStmt);
             return;
         }
+        
+        if (snapshotTarget.Item1 != -1 &&
+            stmt.StartToken.line  <= snapshotTarget.Item1 + 1 && 
+            stmt.EndToken.line >= snapshotTarget.Item1 + 1) // 1 offset due to inserted helper print stmt 
+        {
+            StateTemplateTargetScanner.SuspiciousNode = stmt;
+            if (stmt is VarDeclStmt && WantsStateTarget) return;
+        }
+        
         OriginalStmts.Add(stmt);
         base.HandleStatement(stmt);
     }

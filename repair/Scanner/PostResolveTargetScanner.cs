@@ -7,8 +7,8 @@ namespace Repair.Scanner;
 
 public class PostResolveTargetScanner(string mutationTargetURI, 
     int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
-    bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter) 
-    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, wantsStateTarget, operatorsInUse, reporter)
+    (int, string, bool?) snapshotTarget, List<string> operatorsInUse, ErrorReporter reporter) 
+    : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, snapshotTarget, operatorsInUse, reporter)
 {
     private bool _skipChildUOIMutation;
     private bool _skipChildEVRMutation;
@@ -27,7 +27,7 @@ public class PostResolveTargetScanner(string mutationTargetURI,
     private readonly List<ExprDotName> _accessedClassFields = [];
     private Dictionary<string, Type> _currentScopeChildClassVariables = [];
     private List<(string, Token, Type)> _childClassAccessedVariables = [];
-    public static List<(string, Type, int, int)> AssignableIdentifiers = [];
+    public static readonly List<(string, Type, int, int)> AssignableIdentifiers = [];
     
     private void ScanUOITargets(Expression expr) {
         if (_skipChildUOIMutation || !IsIncludedInTarget(expr)) {

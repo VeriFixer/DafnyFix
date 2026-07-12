@@ -6,12 +6,13 @@ namespace Repair.Scanner;
 
 public abstract class TargetScanner(string mutationTargetURI, 
     int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
-    bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter) 
+    (int, string, bool?) snapshotTarget, List<string> operatorsInUse, ErrorReporter reporter) 
     : Visitor.Visitor("-1", reporter)
 {
     protected List<(string, string, string)> Targets { get; } = ImportPreviousTargets();
     protected bool IsParentSpec;
     protected bool IsFirstVisit = true;
+    protected readonly bool WantsStateTarget = snapshotTarget != (-1, "", null);
     protected static List<Statement> OriginalStmts { get; } = [];
     protected static List<ConstantField> OriginalFields { get; } = [];
     
@@ -43,7 +44,7 @@ public abstract class TargetScanner(string mutationTargetURI,
     }
 
     protected void AddTarget((string, string, string) target) {
-        if (!wantsStateTarget && !Targets.Contains(target))
+        if (!WantsStateTarget && !Targets.Contains(target))
             Targets.Add(target);
     }
     
