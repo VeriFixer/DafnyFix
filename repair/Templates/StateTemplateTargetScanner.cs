@@ -115,7 +115,8 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
         }
         
         foreach (var child in children) {
-            if (child is not Node childNode) continue;
+            if (child is not Node childNode || child.ToString() == snapTargetPred) 
+                continue;
             var suspiciousExpr = FindSuspiciousExpr(childNode, snapTargetPredHS);
             if (suspiciousExpr != null && suspiciousExpr is Expression)
                 return suspiciousExpr;
