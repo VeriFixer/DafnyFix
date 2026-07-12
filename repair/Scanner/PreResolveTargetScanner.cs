@@ -1,11 +1,12 @@
 ﻿using System.Numerics;
 using Microsoft.Dafny;
+using Repair.Templates;
 
 namespace Repair.Scanner;
 
 public class PreResolveTargetScanner(string mutationTargetURI, string mutationTargetMethod, 
     int mutationTargetLine, (int, int) mutationTargetLineRange, (int, int) mutationTargetPosRange, 
-    bool wantsStateTarget, List<string> operatorsInUse, ErrorReporter reporter)
+    bool wantsStateTarget, string snapTargetPred, List<string> operatorsInUse, ErrorReporter reporter)
     : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, wantsStateTarget, operatorsInUse, reporter)
 {
     private List<string> _coveredVariableNames = [];
@@ -13,6 +14,7 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     private List<string> _varsToDelete = [];
     private static readonly List<BinaryExpr.Opcode> CoveredOperators = [];
     private (Token?, Token?) _currentScope;
+    protected BlockStmt? _currentBlockStmt;
     private List<string> _currentMethodIns = [];
     private List<string> _currentMethodOuts = [];
     private List<string> _currentInitMethodOuts = [];
@@ -21,6 +23,7 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     private List<Expression> _loopBoundVarUpdates = [];
     private Statement? _parentLoopGuardBody;
     private NameSegment? _currentLoopBoundVar;
+    private (BlockStmt?, PrintStmt?) _toRemoveHelperPrintStmt;
     private bool _visitFurther = true;
     private bool _isCurrentMethodVoid;
     private bool _parentBlockHasStmt;
@@ -402,6 +405,13 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     /// Group of overriden statement visitors
     /// -------------------------------------
     protected override void HandleStatement(Statement stmt) {
+        if (stmt is PrintStmt prtStmt && StateTemplateTargetScanner.SnapTargetPred == null && 
+            snapTargetPred != "" && prtStmt.Args[0].ToString() == snapTargetPred)
+        {
+            StateTemplateTargetScanner.SnapTargetPred = prtStmt.Args[0];
+            _toRemoveHelperPrintStmt = (_currentBlockStmt, prtStmt);
+            return;
+        }
         OriginalStmts.Add(stmt);
         base.HandleStatement(stmt);
     }
@@ -409,12 +419,19 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     protected override void HandleBlock(BlockStmt blockStmt) {
         var prevCurrentScope = (CloneToken(_currentScope.Item1), CloneToken(_currentScope.Item2));
         _currentScope = (blockStmt.StartToken, blockStmt.EndToken);
+        var prevCurrentBlockStmt = _currentBlockStmt;
+        _currentBlockStmt = blockStmt;
         var prevAssigns = new Dictionary<string, Expression>(_assigns);
         var prevVarsToDelete = _varsToDelete.Select(item => (string)item.Clone()).ToList();
         
         base.HandleBlock(blockStmt);
         
+        if (_toRemoveHelperPrintStmt != (null, null) && _toRemoveHelperPrintStmt.Item1 == blockStmt) {
+            blockStmt.Body.Remove(_toRemoveHelperPrintStmt.Item2);
+            _toRemoveHelperPrintStmt = (null, null);
+        }
         _currentScope = prevCurrentScope;
+        _currentBlockStmt = prevCurrentBlockStmt;
         _assigns = prevAssigns;
         _varsToDelete = prevVarsToDelete;
     }

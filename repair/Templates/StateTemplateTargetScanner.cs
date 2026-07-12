@@ -4,10 +4,13 @@ using Type = Microsoft.Dafny.Type;
 
 namespace Repair.Templates;
 
-public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred, bool snapTargetVal) 
+public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred, bool snapTargetVal, ErrorReporter reporter) 
+    : Visitor.Visitor("-1", reporter)
 {
     private List<List<string>> Targets { get; } = [];
     private static readonly List<string> _templates = ["tpl1", "tpl2", "tpl3", "tpl4"];
+    public static Expression? SnapTargetPred;
+    private readonly List<string> _snapTargetPred = [];
 
     public void ScanStateBasedTemplates() {
         var snapPredSubexpressions = FindVarSnapPredSubexpressions();
@@ -45,17 +48,6 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
             }
         }
     }
-
-    private List<(string, Type)> FindVarSnapPredSubexpressions() {
-        var tokens = snapTargetPred.Split([' ', '!', '-', '(', ')', '[', ']'], StringSplitOptions.RemoveEmptyEntries);
-        return PostResolveTargetScanner.AssignableIdentifiers
-            .Where(id => tokens.Contains(id.Item1) && 
-                         id.Item3 <= snapTargetPos && 
-                         id.Item4 >= snapTargetPos)
-            .Select(id => (id.Item1, id.Item2))
-            .DistinctBy(id => id.Item1)
-            .ToList();
-    }
     
     public void ExportTargets() {
         using StreamWriter sw = File.CreateText("targets.csv");
@@ -63,5 +55,22 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
             var line = string.Join(",", target);
             sw.WriteLine(line);
         }
+    }
+
+    private List<(string, Type)> FindVarSnapPredSubexpressions() {
+        if (SnapTargetPred == null) return [];
+        HandleExpression(SnapTargetPred);
+        return PostResolveTargetScanner.AssignableIdentifiers
+            .Where(id => _snapTargetPred.Contains(id.Item1) && 
+                         id.Item3 <= snapTargetPos && 
+                         id.Item4 >= snapTargetPos)
+            .Select(id => (id.Item1, id.Item2))
+            .DistinctBy(id => id.Item1)
+            .ToList();
+    }
+
+    protected override void VisitExpression(NameSegment nSegExpr) {
+        _snapTargetPred.Add(nSegExpr.Name);
+        base.VisitExpression(nSegExpr);
     }
 }

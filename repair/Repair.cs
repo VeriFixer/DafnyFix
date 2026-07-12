@@ -165,19 +165,17 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
     private readonly bool _wantsStateTarget = snapshotTarget != (-1, "", null);
     
     public override void PreResolve(Program program) {
-        // save original code but post serialization to perform diffs
-        StoreProgram(program);
-    }
-    
-    public override void PreResolve(ModuleDefinition module) {
         var specHelperFinder = new SpecHelperFinder(Reporter);
-        specHelperFinder.Find(module);
+        specHelperFinder.Find(program);
         
         var targetScanner = new PreResolveTargetScanner(mutationTargetURI, mutationTargetMethod, 
             mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, 
-            _wantsStateTarget, operatorsInUse, Reporter);
-        targetScanner.Find(module);
+            _wantsStateTarget, snapshotTarget.Item2, operatorsInUse, Reporter);
+        targetScanner.Find(program);
         targetScanner.ExportTargets();
+        
+        // save original code but post serialization to perform diffs
+        StoreProgram(program);
     }
 
     public override void PostResolve(ModuleDefinition module) {
@@ -192,7 +190,9 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
     public override void PostResolve(Program program) {
         if (!_wantsStateTarget || snapshotTarget.Item3 == null)
             return;
-        var stateTemplateTargetScanner = new StateTemplateTargetScanner(snapshotTarget.Item1, snapshotTarget.Item2, (bool)snapshotTarget.Item3);
+        var stateTemplateTargetScanner = new StateTemplateTargetScanner(
+            snapshotTarget.Item1, snapshotTarget.Item2, 
+            (bool)snapshotTarget.Item3, reporter);
         stateTemplateTargetScanner.ScanStateBasedTemplates();
         stateTemplateTargetScanner.ExportTargets();
     }
