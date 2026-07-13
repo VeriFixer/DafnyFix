@@ -114,7 +114,10 @@ scan_state_template_repairs() {
     local pred="$2"
     local value="$3"
 
-    dotnet "$DAFNY_BIN" verify "$PROGRAM" --allow-warnings \
+    python "$SNAPSHOT_INJECTOR_SCRIPT" "$PROGRAM" "$pred"
+    instrumented_program="$(basename $PROGRAM .dfy)__instrumented_helper.dfy"
+
+    dotnet "$DAFNY_BIN" verify "$instrumented_program" --allow-warnings \
         --plugin "$REPAIR_BIN","scanSnap $line $pred $value" > /dev/null
 }
 
@@ -154,6 +157,9 @@ apply_repair_templates() {
             snap_pred=("${args[@]:2:1}")
         elif [ "$template_type" = "tpl2" ] || [ "$template_type" = "tpl4" ]; then
             snap_pred=("${args[@]:4:1}")
+        elif [ "$template_type" = "tpl5" ]; then
+            snap_pred=("${args[@]:2:1}")
+            snap_pred=$(echo "$snap_pred" | awk -F '<->' '{print $2}')   
         fi
         if [[ ! -z "$snap_pred" ]]; then
             # Instrument input program with snapshot predicate to facilitate parsing into Dafny expression
@@ -267,8 +273,8 @@ echo "Running state-based fault localization on $PROGRAM"
 predictions=$(run_snap_fault_localization)
 echo "PREDICTIONS: $predictions"
 
-predictions_clean=$(echo "$predictions" | sed "s/'), ('/|/g" | sed "s/^('//" | sed "s/')$//")
-IFS='|' read -ra snapshots <<< "$predictions_clean"
+predictions_clean=$(echo "$predictions" | sed "s/'), ('/~/g" | sed "s/^('//" | sed "s/')$//")
+IFS='~' read -ra snapshots <<< "$predictions_clean"
 for snapshot in "${snapshots[@]}"; do
     IFS=',' read -r line pred value <<< "$snapshot"
     # Trim whitespace and remove quotes

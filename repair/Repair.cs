@@ -4,6 +4,7 @@ using Repair.Visitor;
 using Repair.Scanner;
 using Repair.Mutator;
 using Repair.Templates;
+using Path = System.IO.Path;
 using PluginConfiguration = Microsoft.Dafny.LanguageServer.Plugins.PluginConfiguration;
 
 namespace Repair;
@@ -28,6 +29,7 @@ public class Repair : PluginConfiguration
     private string? StateTemplate { get; set; }
     private (int, string, bool?) SnapshotTarget { get; set; } = (-1, "", null);
     private (string, string) StateChangingTargetAssign { get; set; } = ("", "");
+    private (string, string) TemplateReplacementExprs { get; set; } = ("", "");
     
     public override void ParseArguments(string[] args) {
         if (args.Length == 0) return;
@@ -41,7 +43,8 @@ public class Repair : PluginConfiguration
             _mutate = true;
             ParseMutArguments(args);
         } else if (args[0].StartsWith("tpl")) {
-            _tmpRepair = ParseTemplateRepairArguments(args);
+            _tmpRepair = true;
+            ParseTemplateRepairArguments(args);
         } else if (args[0] == "analyze") {
             _analyze = true;
             if (args.Length == 1) return;
@@ -98,8 +101,7 @@ public class Repair : PluginConfiguration
         }
     }
     
-    private bool ParseTemplateRepairArguments(string[] args) {
-        if (args.Length < 4 || (args[0] != "tpl1" && args[0] != "tpl3" && args.Length < 6)) return false;
+    private void ParseTemplateRepairArguments(string[] args) {
         foreach (var (arg, i) in args.Select((arg, i) => (arg, i))) {
             if (StateTemplate == null) {
                 StateTemplate = arg;
@@ -108,13 +110,20 @@ public class Repair : PluginConfiguration
                  StateChangingTargetAssign.Item2 != "")) {
                 ParseSnapshotArguments(args[i..]);
                 break;
+            } else if (StateTemplate == "tpl5") {
+                if (SnapshotTarget.Item1 == -1 && int.TryParse(arg, out var snapPos)) {
+                    SnapshotTarget = (snapPos, SnapshotTarget.Item2, SnapshotTarget.Item3);
+                } else {
+                    var exprs = arg.Split("<->");
+                    if (exprs.Length < 2) continue;
+                    TemplateReplacementExprs = (exprs[0], exprs[1]);   
+                }
             } else if (StateChangingTargetAssign.Item1 == "") {
                 StateChangingTargetAssign = (arg, StateChangingTargetAssign.Item2);
             } else if (StateChangingTargetAssign.Item2 == "") {
                 StateChangingTargetAssign = (StateChangingTargetAssign.Item1, arg);
             }
         }
-        return true;
     }
 
     private void ParseSnapshotArguments(string[] args) {
@@ -134,7 +143,7 @@ public class Repair : PluginConfiguration
 
     public override Rewriter[] GetRewriters(ErrorReporter reporter) {
         return _mutate ? [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, reporter)] : 
-            _tmpRepair ? [new StateTemplateInstantiator(StateTemplate, SnapshotTarget, StateChangingTargetAssign, reporter)] :
+            _tmpRepair ? [new StateTemplateInstantiator(StateTemplate, SnapshotTarget, StateChangingTargetAssign, TemplateReplacementExprs, reporter)] :
             _scan ? 
                 [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, 
                     MutationTargetLine, MutationTargetLineRange, MutationTargetPosRange, 
@@ -310,13 +319,17 @@ public class MutantGenerator(int numMutations, string mutationTargetPos, string 
     }
 }
 
-public class StateTemplateInstantiator(string templateType, (int, string, bool?) snapshotTarget, (string, string) stateChangingTargetAssign, ErrorReporter reporter) : Rewriter(reporter)
+public class StateTemplateInstantiator(string templateType, 
+    (int, string, bool?) snapshotTarget, (string, string) stateChangingTargetAssign, 
+    (string, string) templateReplacementExprs, ErrorReporter reporter) 
+    : Rewriter(reporter)
 {
     public override void PreResolve(Program program) {
         var templateFactory = new TemplateFactory(reporter);
         var template = templateFactory.Create(templateType, 
             snapshotTarget.Item1, snapshotTarget.Item2, snapshotTarget.Item3, 
-            stateChangingTargetAssign.Item1, stateChangingTargetAssign.Item2);
+            stateChangingTargetAssign.Item1, stateChangingTargetAssign.Item2,
+            templateReplacementExprs.Item1, templateReplacementExprs.Item2);
         template?.InstantiateTemplate(program);
         StoreProgram(program);
     }
@@ -330,10 +343,13 @@ public class StateTemplateInstantiator(string templateType, (int, string, bool?)
         var filename = program.Name.Contains("__instrumented_helper") ? 
             Path.GetFileNameWithoutExtension(program.Name)[..^21] : // remove __instrumented_helper
             Path.GetFileNameWithoutExtension(program.Name);
-        var snapshotStr = $"{snapshotTarget.Item1}{(templateType != "tpl1" ? 
+        var snapshotStr = $"{snapshotTarget.Item1}{(templateType != "tpl1" && templateType != "tpl5" ? 
             $"_{snapshotTarget.Item2}_{snapshotTarget.Item3}" : "")}";
-        var assignStr = templateType != "tpl3" ? $"__{stateChangingTargetAssign.Item1}" : "";
-        filename += $"__{templateType}__{snapshotStr}{assignStr}.dfy";
+        var assignStr = templateType != "tpl3" && templateType != "tpl5" ? 
+            $"__{stateChangingTargetAssign.Item1}" : "";
+        var replacementStr = templateType == "tpl5" ? 
+            $"__{templateReplacementExprs.Item1}_{templateReplacementExprs.Item2}" : "";
+        filename += $"__{templateType}__{snapshotStr}{assignStr}{replacementStr}.dfy";
         filename = filename.Replace('/', '\\');
         File.WriteAllText(filename, programText);
     }

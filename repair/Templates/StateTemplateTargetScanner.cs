@@ -62,13 +62,13 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
             if (suspiciousExpr != null) {
                 var toReplaceExpr = bExpr.E0.ToString();
                 var replacementExpr = bExpr.E1.ToString();
-                Targets.Add(["tpl5", $"{snapTargetPos}", toReplaceExpr, replacementExpr]);
+                Targets.Add(["tpl5", $"{snapTargetPos}", $"{toReplaceExpr}<->{replacementExpr}"]);
             }
             suspiciousExpr = FindSuspiciousExpr(candidate, bExpr.E1);
             if (suspiciousExpr != null) {
-                var replacementPos = bExpr.E1.ToString();
+                var toReplaceExpr = bExpr.E1.ToString();
                 var replacementExpr = bExpr.E0.ToString();
-                Targets.Add(["tpl5", $"{snapTargetPos}", replacementPos, replacementExpr]);
+                Targets.Add(["tpl5", $"{snapTargetPos}", $"{toReplaceExpr}<->{replacementExpr}"]);
             }
         }
     }
