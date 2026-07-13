@@ -56,6 +56,7 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     private void ScanExprUpdatingTemplates() {
         if (SnapTargetPred is not BinaryExpr bExpr) return;
         
+        // expr replacement
         var updatingCandidateNodes = GetUpdatingCandidateNodes();
         foreach (var candidate in updatingCandidateNodes) {
             var suspiciousExpr = FindSuspiciousExpr(candidate, bExpr.E0);
@@ -71,6 +72,15 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
                 Targets.Add(["tpl5", $"{snapTargetPos}", $"{toReplaceExpr}<->{replacementExpr}"]);
             }
         }
+        
+        // assign rhs replacement
+        if (SuspiciousNode == null) return;
+        var suspiciousRhs = FindSuspiciousRhs(SuspiciousNode, bExpr.E0);
+        if (suspiciousRhs != -1)
+            Targets.Add(["tpl5",  $"{snapTargetPos}", $"{suspiciousRhs}", $"{bExpr.E1}"]);
+        suspiciousRhs = FindSuspiciousRhs(SuspiciousNode, bExpr.E1);
+        if (suspiciousRhs != -1)
+            Targets.Add(["tpl5",  $"{snapTargetPos}", $"{suspiciousRhs}", $"{bExpr.E0}"]);
     }
 
     private List<(string, Type)> FindVarSnapPredSubexpressions() {
@@ -122,6 +132,19 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
                 return suspiciousExpr;
         }
         return null;
+    }
+    
+    private int FindSuspiciousRhs(Node suspiciousNode, Expression snapTargetPredLhs) {
+        if (suspiciousNode is VarDeclStmt { Assign: not null } vDeclStmt) {
+            return FindSuspiciousRhs(vDeclStmt.Assign, snapTargetPredLhs);
+        }
+        if (suspiciousNode is AssignStatement aStmt) {
+            var lhsMatchIdx = aStmt.Lhss.Select(lhs => lhs.ToString())
+                .ToList().IndexOf(snapTargetPredLhs.ToString());
+            if (lhsMatchIdx != -1)
+                return lhsMatchIdx;
+        }
+        return -1;
     }
     
     public void ExportTargets() {
