@@ -114,9 +114,10 @@ public class Repair : PluginConfiguration
                 if (SnapshotTarget.Item1 == -1 && int.TryParse(arg, out var snapPos)) {
                     SnapshotTarget = (snapPos, SnapshotTarget.Item2, SnapshotTarget.Item3);
                 } else {
-                    var exprs = arg.Split("<->");
-                    if (exprs.Length < 2) continue;
-                    TemplateReplacementExprs = (exprs[0], exprs[1]);   
+                    var exprs = string.Join(" ", args[i..]).Split("<->");
+                    if (exprs.Length == 2)
+                        TemplateReplacementExprs = (exprs[0], exprs[1]);   
+                    break;
                 }
             } else if (StateChangingTargetAssign.Item1 == "") {
                 StateChangingTargetAssign = (arg, StateChangingTargetAssign.Item2);
