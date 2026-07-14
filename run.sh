@@ -119,6 +119,8 @@ scan_state_template_repairs() {
 
     dotnet "$DAFNY_BIN" verify "$instrumented_program" --allow-warnings \
         --plugin "$REPAIR_BIN","scanSnap $line $pred $value" > /dev/null
+
+    rm "$instrumented_program"
 }
 
 mutate_program() {
@@ -159,7 +161,11 @@ apply_repair_templates() {
             snap_pred=("${args[@]:4:1}")
         elif [ "$template_type" = "tpl5" ]; then
             snap_pred=("${args[@]:2:1}")
-            snap_pred=$(echo "$snap_pred" | awk -F '<->' '{print $2}')   
+            if [[ "$snap_pred" =~ \<-\> ]]; then
+                snap_pred=$(echo "$snap_pred" | awk -F '<->' '{print $2}')
+            else
+                snap_pred=("${args[@]:3:1}")
+            fi
         fi
         if [[ ! -z "$snap_pred" ]]; then
             # Instrument input program with snapshot predicate to facilitate parsing into Dafny expression

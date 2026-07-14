@@ -29,7 +29,7 @@ public class Repair : PluginConfiguration
     private string? StateTemplate { get; set; }
     private (int, string, bool?) SnapshotTarget { get; set; } = (-1, "", null);
     private (string, string) StateChangingTargetAssign { get; set; } = ("", "");
-    private (string, string) TemplateReplacementExprs { get; set; } = ("", "");
+    private (string, int, string) TemplateReplacementExprs { get; set; } = ("", -1, "");
     
     public override void ParseArguments(string[] args) {
         if (args.Length == 0) return;
@@ -115,8 +115,11 @@ public class Repair : PluginConfiguration
                     SnapshotTarget = (snapPos, SnapshotTarget.Item2, SnapshotTarget.Item3);
                 } else {
                     var exprs = string.Join(" ", args[i..]).Split("<->");
-                    if (exprs.Length == 2)
-                        TemplateReplacementExprs = (exprs[0], exprs[1]);   
+                    if (exprs.Length >= 2) {
+                        TemplateReplacementExprs = (exprs[0], -1, exprs[1]);
+                    } else if (int.TryParse(args[i], out var assignRhsIdx)) {
+                        TemplateReplacementExprs = ("", assignRhsIdx, string.Join(" ", args[(i + 1)..]));
+                    }
                     break;
                 }
             } else if (StateChangingTargetAssign.Item1 == "") {
@@ -144,7 +147,8 @@ public class Repair : PluginConfiguration
 
     public override Rewriter[] GetRewriters(ErrorReporter reporter) {
         return _mutate ? [new MutantGenerator(NumMutations, MutationTargetPos, MutationOperator, MutationArg, reporter)] : 
-            _tmpRepair ? [new StateTemplateInstantiator(StateTemplate, SnapshotTarget, StateChangingTargetAssign, TemplateReplacementExprs, reporter)] :
+            _tmpRepair ? [new StateTemplateInstantiator(StateTemplate, SnapshotTarget, 
+                    StateChangingTargetAssign, TemplateReplacementExprs, reporter)] :
             _scan ? 
                 [new MutationTargetScanner(MutationTargetURI, MutationTargetMethod, 
                     MutationTargetLine, MutationTargetLineRange, MutationTargetPosRange, 
@@ -322,15 +326,14 @@ public class MutantGenerator(int numMutations, string mutationTargetPos, string 
 
 public class StateTemplateInstantiator(string templateType, 
     (int, string, bool?) snapshotTarget, (string, string) stateChangingTargetAssign, 
-    (string, string) templateReplacementExprs, ErrorReporter reporter) 
+    (string, int, string) templateReplacementExprs, ErrorReporter reporter)
     : Rewriter(reporter)
 {
     public override void PreResolve(Program program) {
         var templateFactory = new TemplateFactory(reporter);
         var template = templateFactory.Create(templateType, 
-            snapshotTarget.Item1, snapshotTarget.Item2, snapshotTarget.Item3, 
-            stateChangingTargetAssign.Item1, stateChangingTargetAssign.Item2,
-            templateReplacementExprs.Item1, templateReplacementExprs.Item2);
+            snapshotTarget.Item1, snapshotTarget.Item2, snapshotTarget.Item3, stateChangingTargetAssign.Item1, stateChangingTargetAssign.Item2,
+            templateReplacementExprs.Item1, templateReplacementExprs.Item2, templateReplacementExprs.Item3);
         template?.InstantiateTemplate(program);
         StoreProgram(program);
     }
@@ -348,8 +351,11 @@ public class StateTemplateInstantiator(string templateType,
             $"_{snapshotTarget.Item2}_{snapshotTarget.Item3}" : "")}";
         var assignStr = templateType != "tpl3" && templateType != "tpl5" ? 
             $"__{stateChangingTargetAssign.Item1}" : "";
+        var toReplaceStr = templateReplacementExprs.Item1 != "" ? 
+            $"{templateReplacementExprs.Item1}" : 
+            $"{templateReplacementExprs.Item2}";
         var replacementStr = templateType == "tpl5" ? 
-            $"__{templateReplacementExprs.Item1}_{templateReplacementExprs.Item2}" : "";
+            $"__{toReplaceStr}_{templateReplacementExprs.Item3}" : "";
         filename += $"__{templateType}__{snapshotStr}{assignStr}{replacementStr}.dfy";
         filename = filename.Replace('/', '\\');
         File.WriteAllText(filename, programText);
