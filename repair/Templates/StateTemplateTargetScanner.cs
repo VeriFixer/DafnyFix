@@ -17,6 +17,7 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
         Targets.Add(["tpl3", $"{snapTargetPos}", snapTargetPred, $"{snapTargetVal}"]);
         ScanAssignChangingTemplates();
         ScanExprUpdatingTemplates();
+        ScanImplicationToIfStmtTemplate();
     }
 
     private void ScanAssignChangingTemplates() {
@@ -81,6 +82,25 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
         suspiciousRhs = FindSuspiciousRhs(SuspiciousNode, bExpr.E1);
         if (suspiciousRhs != -1)
             Targets.Add(["tpl5",  $"{snapTargetPos}", $"{suspiciousRhs}", $"{bExpr.E0}"]);
+    }
+
+    private void ScanImplicationToIfStmtTemplate() {
+        if (SnapTargetPred is not BinaryExpr outerBExpr || 
+            outerBExpr.Op != BinaryExpr.Opcode.Imp) return;
+        if (outerBExpr.E1 is not BinaryExpr innerBExpr || 
+            innerBExpr.Op != BinaryExpr.Opcode.Eq) return;
+        
+        var snapPredSubexpressions = FindVarSnapPredSubexpressions()
+            .Select(e => e.Item1).ToList();
+        var suspiciousIdentifier = snapPredSubexpressions.Find(e => e == innerBExpr.E0.ToString());
+        if (suspiciousIdentifier != null) // TODO: check if it's inside an if
+            Targets.Add(["tpl6",  $"{snapTargetPos}", $"{outerBExpr.E0}", $"{suspiciousIdentifier}", $"{innerBExpr.E1}"]);
+        
+        snapPredSubexpressions = FindVarSnapPredSubexpressions()
+            .Select(e => e.Item1).ToList();
+        suspiciousIdentifier = snapPredSubexpressions.Find(e => e == innerBExpr.E1.ToString());
+        if (suspiciousIdentifier != null) // TODO: check if it's inside an if
+            Targets.Add(["tpl6",  $"{snapTargetPos}", $"{outerBExpr.E1}", $"{suspiciousIdentifier}", $"{innerBExpr.E0}"]);
     }
 
     private List<(string, Type)> FindVarSnapPredSubexpressions() {
