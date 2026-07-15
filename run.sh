@@ -166,6 +166,9 @@ apply_repair_templates() {
             else
                 snap_pred=("${args[@]:3:1}")
             fi
+        elif [ "$template_type" = "tpl6" ]; then
+            snap_pred=("${args[@]:2:1}, ${args[@]:4:1}")
+            plugin_args="${args[@]:0:1} ${args[@]:1:1} guard:${args[@]:2:1} body:${args[@]:3:1} ${args[@]:4:1}"
         fi
         if [[ ! -z "$snap_pred" ]]; then
             # Instrument input program with snapshot predicate to facilitate parsing into Dafny expression

@@ -4,11 +4,22 @@ namespace Repair.Templates;
 
 public class TemplateFactory(ErrorReporter reporter)
 {
-    public Template? Create(string templateType, 
-        int snapTargetPos, string snapTargetPred, bool? snapTargetVal, 
-        string stateChangingTargetAssignVar, string stateChangingTargetAssignType,
-        string toReplaceExpr, int toReplaceAssignRhsIdx, string replacementExpr)
+    public Template? Create(string templateType, (int, string, bool?) snapshotTarget, 
+        (string, string) stateChangingTargetAssign, (string, string, string) stateChangingTargetIfStmt,
+        (string, int, string) templateReplacementExprs, ErrorReporter reporter)
     {
+        var snapTargetPos = snapshotTarget.Item1;
+        var snapTargetPred = snapshotTarget.Item2;
+        var snapTargetVal = snapshotTarget.Item3;
+        var stateChangingTargetAssignVar = stateChangingTargetAssign.Item1;
+        var stateChangingTargetAssignType = stateChangingTargetAssign.Item2;
+        var ifGuardExpr = stateChangingTargetIfStmt.Item1;
+        var assignLhs = stateChangingTargetIfStmt.Item2;
+        var assignRhs = stateChangingTargetIfStmt.Item3;
+        var toReplaceExpr = templateReplacementExprs.Item1;
+        var toReplaceAssignRhsIdx = templateReplacementExprs.Item2;
+        var replacementExpr = templateReplacementExprs.Item3;
+        
         return templateType switch {
             "tpl1" => new Template1(snapTargetPos, stateChangingTargetAssignVar, stateChangingTargetAssignType, reporter),
             "tpl2" => snapTargetVal != null ? new Template2(snapTargetPos, snapTargetPred, (bool)snapTargetVal, 
@@ -17,6 +28,7 @@ public class TemplateFactory(ErrorReporter reporter)
             "tpl4" => snapTargetVal != null ? new Template4(snapTargetPos, snapTargetPred, (bool)snapTargetVal, 
                 stateChangingTargetAssignVar, stateChangingTargetAssignType, reporter) : null,
             "tpl5" => new Template5(snapTargetPos, toReplaceExpr, toReplaceAssignRhsIdx, replacementExpr, reporter),
+            "tpl6" => new Template6(snapTargetPos, ifGuardExpr, assignLhs, assignRhs, reporter),
             _ => null
         };
     }

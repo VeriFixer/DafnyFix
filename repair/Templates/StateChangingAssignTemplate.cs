@@ -5,7 +5,7 @@ namespace Repair.Templates;
 
 public abstract class StateChangingAssignTemplate(int snapTargetPos, string snapTargetPred, 
     string stateChangingTargetAssignVar, string stateChangingTargetAssignType, ErrorReporter reporter) 
-    : Template(snapTargetPos, snapTargetPred, reporter)
+    : Template(snapTargetPos, snapTargetPred, "", reporter)
 {
     public AssignStatement? CreateStateChangingAssignment() {
         return stateChangingTargetAssignType switch {

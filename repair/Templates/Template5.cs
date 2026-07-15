@@ -3,7 +3,7 @@ using Microsoft.Dafny;
 namespace Repair.Templates;
 
 public class Template5(int snapTargetPos, string toReplaceExpr, int toReplaceAssignRhsIdx, string replacementExpr, ErrorReporter reporter) 
-    : Template(snapTargetPos, replacementExpr, reporter)
+    : Template(snapTargetPos, replacementExpr, "", reporter)
 {
     protected override void InstantiateTemplate() {
         if (SnapTargetPred == null || SuspiciousStmt == null) return;
