@@ -29,7 +29,7 @@ public class Repair : PluginConfiguration
     private string? StateTemplate { get; set; }
     private (int, string, bool?) SnapshotTarget { get; set; } = (-1, "", null);
     private (string, string) StateChangingTargetAssign { get; set; } = ("", "");
-    private (string, string, string) StateChangingTargetIfStmt { get; set; } = ("", "", "");
+    private (string, string, string, bool) StateChangingTargetIfStmt { get; set; } = ("", "", "", true);
     private (string, int, string) TemplateReplacementExprs { get; set; } = ("", -1, "");
     
     public override void ParseArguments(string[] args) {
@@ -128,8 +128,9 @@ public class Repair : PluginConfiguration
                     if (ifGuardArg == -1 || ifBodyArg == -1) continue;
                     var ifGuardExpr = string.Join(" ", args[ifGuardArg..ifBodyArg])[6..];
                     var assignLhs = args[ifBodyArg][5..];
-                    var assignRhs = string.Join(" ", args[ifBodyArg+1]);
-                    StateChangingTargetIfStmt = (ifGuardExpr, assignLhs, assignRhs);
+                    var assignRhs = string.Join(" ", args[(ifBodyArg + 1)..^1]);
+                    var innerIfStmt = bool.Parse(args[^1]);
+                    StateChangingTargetIfStmt = (ifGuardExpr, assignLhs, assignRhs, innerIfStmt);
                 }
             } else if (StateChangingTargetAssign.Item1 == "") {
                 StateChangingTargetAssign = (arg, StateChangingTargetAssign.Item2);
@@ -334,7 +335,7 @@ public class MutantGenerator(int numMutations, string mutationTargetPos, string 
 }
 
 public class StateTemplateInstantiator(string templateType, (int, string, bool?) snapshotTarget, 
-    (string, string) stateChangingTargetAssign, (string, string, string) stateChangingTargetIfStmt,
+    (string, string) stateChangingTargetAssign, (string, string, string, bool) stateChangingTargetIfStmt,
     (string, int, string) templateReplacementExprs, ErrorReporter reporter)
     : Rewriter(reporter)
 {

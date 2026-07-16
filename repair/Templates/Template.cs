@@ -7,6 +7,8 @@ public abstract class Template(int snapTargetPos, string snapTargetPred, string 
     protected Statement? SuspiciousStmt;
     protected BlockStmt? SuspiciousBlockStmt;
     private BlockStmt? _currentBlockStmt;
+    protected IfStmt? TargetIfStmt;
+    private IfStmt? _parentIfStmt;
     protected Expression? SnapTargetPred;
     protected Expression? AdditionalExpr;
     private (BlockStmt?, PrintStmt?) _toRemoveHelperPrintStmt;
@@ -39,13 +41,12 @@ public abstract class Template(int snapTargetPos, string snapTargetPred, string 
         {
             SuspiciousStmt = stmt;
             SuspiciousBlockStmt = _currentBlockStmt;
+            TargetIfStmt = _parentIfStmt;
             if (stmt is VarDeclStmt) return;
         }
         base.HandleStatement(stmt);
     }
 
-    protected override void HandleExpression(Expression expr) { }
-    
     protected override void HandleBlock(BlockStmt blockStmt) {
         var prevCurrentBlockStmt = _currentBlockStmt;
         _currentBlockStmt = blockStmt;
@@ -58,4 +59,13 @@ public abstract class Template(int snapTargetPos, string snapTargetPred, string 
         }
         _currentBlockStmt = prevCurrentBlockStmt;
     }
+    
+    protected override void VisitStatement(IfStmt ifStmt) {
+        var previousParentIfStmt = _parentIfStmt;
+        _parentIfStmt = ifStmt;
+        base.VisitStatement(ifStmt);
+        _parentIfStmt = previousParentIfStmt;
+    }
+    
+    protected override void HandleExpression(Expression expr) { }
 }

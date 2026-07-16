@@ -22,6 +22,7 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     private Dictionary<string, Expression> _assigns = [];
     private List<Expression> _loopBoundVarUpdates = [];
     private Statement? _parentLoopGuardBody;
+    private IfStmt? _parentIfStmt;
     private NameSegment? _currentLoopBoundVar;
     private (BlockStmt?, PrintStmt?) _toRemoveHelperPrintStmt;
     private bool _visitFurther = true;
@@ -418,6 +419,8 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
             stmt.EndToken.line >= snapshotTarget.Item1 + 1) // 1 offset due to inserted helper print stmt 
         {
             StateTemplateTargetScanner.SuspiciousNode = stmt;
+            if (_parentIfStmt != null)
+                StateTemplateTargetScanner.SuspiciousIfStmt = _parentIfStmt;
             if (stmt is VarDeclStmt && WantsStateTarget) return;
         }
         
@@ -534,6 +537,8 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     
     protected override void VisitStatement(IfStmt ifStmt) {
         var prevParentBlockHasStmt = _parentBlockHasStmt;
+        var previousParentIfStmt = _parentIfStmt;
+        _parentIfStmt = ifStmt;
         
         if (ifStmt.Guard != null) {
             HandleExpression(ifStmt.Guard);
@@ -567,6 +572,7 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
             }
         }
         _parentBlockHasStmt = prevParentBlockHasStmt;
+        _parentIfStmt = previousParentIfStmt;
         
         if (ShouldImplement("CBE") && IsIncludedInTarget(ifStmt)) {
             AddTarget(($"{ifStmt.Thn.StartToken.pos}-{ifStmt.Thn.EndToken.pos}", "CBE", ""));

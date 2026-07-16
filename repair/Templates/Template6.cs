@@ -2,7 +2,7 @@ using Microsoft.Dafny;
 
 namespace Repair.Templates;
 
-public class Template6(int snapTargetPos, string ifGuardExpr, string assignLhs, string assignRhs, ErrorReporter reporter) 
+public class Template6(int snapTargetPos, string ifGuardExpr, string assignLhs, string assignRhs, bool innerIfStmt, ErrorReporter reporter) 
     : Template(snapTargetPos, ifGuardExpr, assignRhs, reporter)
 {
     protected override void InstantiateTemplate() {
@@ -11,10 +11,21 @@ public class Template6(int snapTargetPos, string ifGuardExpr, string assignLhs, 
             return;
         
         var ifStmt = CreateStateChangingIfStmt();
-        var faultyStmtIdx = SuspiciousBlockStmt.Body.IndexOf(SuspiciousStmt);
-        if (ifStmt == null || faultyStmtIdx == -1) 
-            return;
-        SuspiciousBlockStmt.Body.Insert(faultyStmtIdx + 1, ifStmt);
+        if (ifStmt == null) return;
+
+        if (innerIfStmt) {
+            var faultyStmtIdx = SuspiciousBlockStmt.Body.IndexOf(SuspiciousStmt);
+            if (faultyStmtIdx != -1) 
+                SuspiciousBlockStmt.Body.Insert(faultyStmtIdx + 1, ifStmt);
+        } else if (TargetIfStmt != null) {
+            if (TargetIfStmt.Els == null) {
+                TargetIfStmt.Els = ifStmt;
+            } else {
+                var targetIfStmtIdx = SuspiciousBlockStmt.Body.IndexOf(TargetIfStmt);
+                if (targetIfStmtIdx != -1)
+                    SuspiciousBlockStmt.Body.Insert(targetIfStmtIdx + 1, ifStmt);
+            }
+        }
     }
 
     private IfStmt? CreateStateChangingIfStmt() {

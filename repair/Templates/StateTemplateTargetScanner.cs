@@ -11,7 +11,8 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     private static readonly List<string> _assignChangingTemplates = ["tpl1", "tpl2", "tpl4"];
     public static Node? SuspiciousNode;
     public static Expression? SnapTargetPred;
-    private readonly List<string> _snapTargetPred = [];
+    public static IfStmt? SuspiciousIfStmt;
+    private readonly List<string> _snapTargetPredIdentifiers = [];
 
     public void ScanStateBasedTemplates() {
         Targets.Add(["tpl3", $"{snapTargetPos}", snapTargetPred, $"{snapTargetVal}"]);
@@ -93,21 +94,29 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
         var snapPredSubexpressions = FindVarSnapPredSubexpressions()
             .Select(e => e.Item1).ToList();
         var suspiciousIdentifier = snapPredSubexpressions.Find(e => e == innerBExpr.E0.ToString());
-        if (suspiciousIdentifier != null) // TODO: check if it's inside an if
-            Targets.Add(["tpl6",  $"{snapTargetPos}", $"{outerBExpr.E0}", $"{suspiciousIdentifier}", $"{innerBExpr.E1}"]);
+        if (suspiciousIdentifier != null) {
+            // last element represents whether the template should target the snapshot's position or complement the enclosing if stmt
+            Targets.Add(["tpl6", $"{snapTargetPos}", $"{outerBExpr.E0}", $"{suspiciousIdentifier}", $"{innerBExpr.E1}", "true"]);
+            if (SuspiciousIfStmt != null)
+                Targets.Add(["tpl6", $"{snapTargetPos}", $"{outerBExpr.E0}", $"{suspiciousIdentifier}", $"{innerBExpr.E1}", "false"]);
+        }
         
         snapPredSubexpressions = FindVarSnapPredSubexpressions()
             .Select(e => e.Item1).ToList();
         suspiciousIdentifier = snapPredSubexpressions.Find(e => e == innerBExpr.E1.ToString());
-        if (suspiciousIdentifier != null) // TODO: check if it's inside an if
-            Targets.Add(["tpl6",  $"{snapTargetPos}", $"{outerBExpr.E1}", $"{suspiciousIdentifier}", $"{innerBExpr.E0}"]);
+        if (suspiciousIdentifier != null) {
+            // last element represents whether the template should target the snapshot's position or complement the enclosing if stmt
+            Targets.Add(["tpl6",  $"{snapTargetPos}", $"{outerBExpr.E1}", $"{suspiciousIdentifier}", $"{innerBExpr.E0}", "true"]);
+            if (SuspiciousIfStmt != null)
+                Targets.Add(["tpl6", $"{snapTargetPos}", $"{outerBExpr.E0}", $"{suspiciousIdentifier}", $"{innerBExpr.E1}", "false"]);
+        }
     }
 
     private List<(string, Type)> FindVarSnapPredSubexpressions() {
         if (SnapTargetPred == null) return [];
         HandleExpression(SnapTargetPred);
         return PostResolveTargetScanner.AssignableIdentifiers
-            .Where(id => _snapTargetPred.Contains(id.Item1) && 
+            .Where(id => _snapTargetPredIdentifiers.Contains(id.Item1) && 
                          id.Item3 <= snapTargetPos && 
                          id.Item4 >= snapTargetPos)
             .Select(id => (id.Item1, id.Item2))
@@ -116,7 +125,7 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     }
 
     protected override void VisitExpression(NameSegment nSegExpr) {
-        _snapTargetPred.Add(nSegExpr.Name);
+        _snapTargetPredIdentifiers.Add(nSegExpr.Name);
         base.VisitExpression(nSegExpr);
     }
 
