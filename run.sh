@@ -93,7 +93,7 @@ gen_tests() {
 
     if [ ! -f $test_file ]; then
         dotnet "$TEST_GEN_BIN" "$PROGRAM" -o "$test_file" \
-            --grouping by-status --skip-on-exception --comment-uncompilable -n 20
+            --grouping by-status --skip-on-exception --comment-uncompilable -n 20 > /dev/null
         sed -i '1,5d' "$test_file"
     fi
 }
