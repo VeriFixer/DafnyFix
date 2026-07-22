@@ -27,10 +27,12 @@ die() {
 
 USAGE="Usage: ${BASH_SOURCE[0]}
     <full path to the program under repair, e.g., $SCRIPT_DIR/dataset/abs.dfy> 
+    [--min_lines <the minimum number of faulty lines to explore, e.g., 5 (by default)>]
+    [--min_states <the minimum number of faulty program states to explore, e.g., 10 (by default)>]
     [--run_dir <the directory where the script should be run, e.g., $SCRIPT_DIR (by deafult)>]
     [help]"
 
-if [ "$#" -ne "1" ] && [ "$#" -ne "3" ]; then
+if [ "$#" -ne "1" ] && [ "$#" -ne "3" ] && [ "$#" -ne "5" ] && [ "$#" -ne "7" ]; then
   die "$USAGE"
 fi
 if [ "$#" -eq "1" ] && [ "$1" = "--help" ]; then
@@ -41,8 +43,9 @@ fi
 PROGRAM=$1;
 PROGRAM="$(cd "$(dirname "$PROGRAM")" && pwd)/$(basename "$PROGRAM")" # Get full path
 shift
-MIN_LINES_TO_EXPLORE=3
+MIN_LINES_TO_EXPLORE=5
 MIN_PERCENTAGE_TO_EXPLORE=15
+MIN_STATES_TO_EXPLORE=10
 REPAIR_FILE=""
 OUT_DIR="$SCRIPT_DIR/repairs"
 RUN_DIR="$SCRIPT_DIR"
@@ -50,6 +53,12 @@ RUN_DIR="$SCRIPT_DIR"
 while [[ "$1" = --* ]]; do
   OPTION=$1; shift
   case $OPTION in
+    (--min_lines)
+      MIN_LINES_TO_EXPLORE=$1;
+      shift;;
+    (--min_states)
+      MIN_STATES_TO_EXPLORE=$1;
+      shift;;
     (--run_dir)
       RUN_DIR=$1;
       shift;;
@@ -81,9 +90,9 @@ run_cntm_fault_localization() {
 
 run_snap_fault_localization() {
     gen_tests
-    output=$(python $STATE_FAULT_LOC_SCRIPT "$PROGRAM")
-    predictions=$(echo "$output" | grep 'Predictions' | cut -d ':' -f 2 | sed -n 's/^[^[]*\[\(.*\)\][^]]*$/\1/p')
-    echo "$predictions"
+    python $STATE_FAULT_LOC_SCRIPT "$PROGRAM" \
+        --min_lines_to_explore $MIN_LINES_TO_EXPLORE \
+        --min_states_to_explore $MIN_STATES_TO_EXPLORE
 }
 
 gen_tests() {
@@ -279,7 +288,13 @@ echo
 
 # State fault localization
 echo "Running state-based fault localization on $PROGRAM"
-predictions=$(run_snap_fault_localization)
+all_predictions=$(run_snap_fault_localization)
+predictions=$(echo -e "$all_predictions" | cat -v | \
+    grep -E '^\^\[\[1mPredictions\^\[\[0m(\s*)?:' | \
+    cut -d ':' -f 2- | sed -n 's/^[^[]*\[\(.*\)\][^]]*$/\1/p')
+additional_predictions=$(echo -e "$all_predictions" | cat -v | \
+    grep -E '^\^\[\[1mAdditional Predictions\^\[\[0m(\s*)?:' | \
+    cut -d ':' -f 2- | sed -n 's/^[^[]*\[\(.*\)\][^]]*$/\1/p')
 echo "PREDICTIONS: $predictions"
 
 predictions_clean=$(echo "$predictions" | sed "s/'), ('/~/g" | sed "s/^('//" | sed "s/')$//")
