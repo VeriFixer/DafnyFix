@@ -257,6 +257,16 @@ process_output() {
     fi
 }
 
+got_successful_repair() {
+    repairs_dir="$OUT_DIR/repairs"
+    program_name=$(basename $PROGRAM .dfy)
+    repair_file="$repairs_dir/$program_name"
+    has_repair_files=$(ls $repair_file* 2> /dev/null)
+    if [[ -n $has_repair_files ]]; then
+        echo Has repair
+    fi
+}
+
 # ------------------------------------------------------------------------------ Main
 
 pushd . > /dev/null 2>&1
@@ -302,9 +312,9 @@ IFS='~' read -ra snapshots <<< "$predictions_clean"
 for snapshot in "${snapshots[@]}"; do
     IFS=',' read -r line pred value <<< "$snapshot"
     # Trim whitespace and remove quotes
-    line=$(echo "$line" | sed "s/^[[:space:]]*'//; s/'[[:space:]]*$//")
-    pred=$(echo "$pred" | sed "s/^[[:space:]]*'//; s/'[[:space:]]*$//")
-    value=$(echo "$value" | sed "s/^[[:space:]]*'//; s/'[[:space:]]*$//")
+    line=$(echo "$line" | sed "s/^[[:space:]]*[\"']//; s/[\"'][[:space:]]*\$//")
+    pred=$(echo "$pred" | sed "s/^[[:space:]]*[\"']//; s/[\"'][[:space:]]*\$//")
+    value=$(echo "$value" | sed "s/^[[:space:]]*[\"']//; s/[\"'][[:space:]]*\$//")
 
     echo "Scanning state-based template repairs for snapshot ($line, $pred, $value)"
     scan_state_template_repairs "$line" "$pred" "$value"
@@ -312,6 +322,34 @@ for snapshot in "${snapshots[@]}"; do
     apply_repair_templates
     rm template-targets.csv
 done
+
+has_successful_repairs=$(got_successful_repair)
+if [[ -z $has_successful_repairs ]]; then
+    echo
+    echo "Will explore additional snapshots until repair is found"
+    echo "ADDITIONAL PREDICTIONS: $additional_predictions"
+
+    predictions_clean=$(echo "$additional_predictions" | sed "s/'), ('/~/g" | sed "s/^('//" | sed "s/')$//")
+    IFS='~' read -ra snapshots <<< "$predictions_clean"
+    for snapshot in "${snapshots[@]}"; do
+        IFS=',' read -r line pred value <<< "$snapshot"
+        # Trim whitespace and remove quotes
+        line=$(echo "$line" | sed "s/^[[:space:]]*[\"']//; s/[\"'][[:space:]]*\$//")
+        pred=$(echo "$pred" | sed "s/^[[:space:]]*[\"']//; s/[\"'][[:space:]]*\$//")
+        value=$(echo "$value" | sed "s/^[[:space:]]*[\"']//; s/[\"'][[:space:]]*\$//")
+
+        echo "Scanning state-based template repairs for snapshot ($line, $pred, $value)"
+        scan_state_template_repairs "$line" "$pred" "$value"
+        mv targets.csv template-targets.csv
+        apply_repair_templates
+        rm template-targets.csv
+
+        has_successful_repairs=$(got_successful_repair)
+        if [[ -n $has_successful_repairs ]]; then
+            break
+        fi
+    done
+fi
 
 popd > /dev/null 2>&1
 echo "[INFO] Job finished"
