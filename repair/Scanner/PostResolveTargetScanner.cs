@@ -147,11 +147,16 @@ public class PostResolveTargetScanner(string mutationTargetURI,
         var exprLocation = $"{expr.StartToken.pos}-{expr.EndToken.pos}";
         switch (expr.Type) {
             case IntType:
-                AddTarget((exprLocation, "EVR", "int")); break;
+                AddTarget((exprLocation, "EVR", "int:0"));
+                AddTarget((exprLocation, "EVR", "int:1"));
+                AddTarget((exprLocation, "EVR", "int:-1")); break;
             case RealType:
-                AddTarget((exprLocation, "EVR", "real")); break;
+                AddTarget((exprLocation, "EVR", "real:0")); 
+                AddTarget((exprLocation, "EVR", "real:1")); 
+                AddTarget((exprLocation, "EVR", "real:-1")); break;
             case BitvectorType:
-                AddTarget((exprLocation, "EVR", "bv")); break;
+                AddTarget((exprLocation, "EVR", "bv:0")); 
+                AddTarget((exprLocation, "EVR", "bv:1")); break;
             case CharType:
                 AddTarget((exprLocation, "EVR", "char")); break;
             case SetType:
@@ -164,10 +169,11 @@ public class PostResolveTargetScanner(string mutationTargetURI,
                 AddTarget((exprLocation, "EVR", "map")); break;
             case UserDefinedType uType:
                 if (uType.Name == "nat") {
-                    AddTarget((exprLocation, "EVR", "int"));
+                    AddTarget((exprLocation, "EVR", "int:0"));
+                    AddTarget((exprLocation, "EVR", "int:1"));
                 } else if (uType.Name == "string") { // string type
                     AddTarget((exprLocation, "EVR", "string"));
-                } else if (expr.Type.IsArrayType) {
+                } else if (uType.IsArrayType) {
                     AddTarget((exprLocation, "EVR", "array"));
                 }
                 if (uType.Name[^1] == '?') { // nullable type

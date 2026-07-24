@@ -12,15 +12,15 @@ public class ExprValueReplacementMutator(string mutationTargetPos, string val, E
 
     protected override Expression CreateMutatedExpression(Expression originalExpr) {
         Expression mutatedExpr = val switch {
-            "int" => new LiteralExpr(originalExpr.Origin, 0),
-            "real" => new LiteralExpr(originalExpr.Origin, BigDec.ZERO),
-            "bv" => new LiteralExpr(originalExpr.Origin, BigInteger.Zero),
-            "char" => new CharLiteralExpr(originalExpr.Origin, "0"),
-            "string" => new StringLiteralExpr(originalExpr.Origin, "", false),
-            "set" => new SetDisplayExpr(originalExpr.Origin, true, []),
-            "multiset" => new MultiSetDisplayExpr(originalExpr.Origin, []),
-            "seq" => new SeqDisplayExpr(originalExpr.Origin, []),
-            "map" => new MapDisplayExpr(originalExpr.Origin, true, []),
+            not null when val.StartsWith("int") => CreateNumericalValueExpr(originalExpr.Origin),
+            not null when val.StartsWith("real") => CreateNumericalValueExpr(originalExpr.Origin),
+            not null when val.StartsWith("bv") => CreateNumericalValueExpr(originalExpr.Origin),
+            not null when val.StartsWith("char") => new CharLiteralExpr(originalExpr.Origin, "0"),
+            not null when val.StartsWith("string") => new StringLiteralExpr(originalExpr.Origin, "", false),
+            not null when val.StartsWith("set") => new SetDisplayExpr(originalExpr.Origin, true, []),
+            not null when val.StartsWith("multiset") => new MultiSetDisplayExpr(originalExpr.Origin, []),
+            not null when val.StartsWith("seq") => new SeqDisplayExpr(originalExpr.Origin, []),
+            not null when val.StartsWith("map") => new MapDisplayExpr(originalExpr.Origin, true, []),
             _ => new LiteralExpr(originalExpr.Origin, null)
         };
         
@@ -40,6 +40,20 @@ public class ExprValueReplacementMutator(string mutationTargetPos, string val, E
         MutantGenerator.MutatedNodes.Add(mutatedExpr);
         ForbidChildrenMutation(mutatedExpr);
         return mutatedExpr;
+    }
+
+    private Expression CreateNumericalValueExpr(IOrigin origin) {
+        var args = val.Split(':');
+        if (args.Length != 2) return new LiteralExpr(origin, null);
+        
+        if (args[0] == "int")
+            return new LiteralExpr(origin, int.Parse(args[1])); 
+        if (args[0] == "real")
+            return new LiteralExpr(origin, BigDec.FromString(args[1]));
+        // else: bv
+        if (args[1] != "-1")
+            return new LiteralExpr(origin, BigInteger.Parse(args[1]));
+        return new NegationExpression(origin, new LiteralExpr(origin, BigInteger.One));
     }
     
     private TypeRhs CreateArrayInit(AssignmentRhs originalRhs) {
