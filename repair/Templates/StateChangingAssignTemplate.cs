@@ -33,13 +33,17 @@ public abstract class StateChangingAssignTemplate(int snapTargetPos, string snap
     }
 
     private AssignStatement CreateIntegerAssignment() {
-        var zeroLiteral = new LiteralExpr(null, 0);
-        return CreateAssignment(new ExprRhs(zeroLiteral));
+        var varNameSegment = new NameSegment(null, stateChangingTargetAssignVar, null);
+        var oneLiteral = new LiteralExpr(null, 1);
+        var addExpr = new BinaryExpr(null, BinaryExpr.Opcode.Add, varNameSegment, oneLiteral);
+        return CreateAssignment(new ExprRhs(addExpr));
     }
     
     private AssignStatement CreateRealAssignment() {
-        var zeroLiteral = new LiteralExpr(null, BigDec.FromString("0.0"));
-        return CreateAssignment(new ExprRhs(zeroLiteral));
+        var varNameSegment = new NameSegment(null, stateChangingTargetAssignVar, null);
+        var oneLiteral = new LiteralExpr(null, BigDec.FromString("1.0"));
+        var addExpr = new BinaryExpr(null, BinaryExpr.Opcode.Add, varNameSegment, oneLiteral);
+        return CreateAssignment(new ExprRhs(addExpr));
     }
     
     private AssignStatement CreateBoolAssignment() {
