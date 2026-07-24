@@ -191,6 +191,32 @@ public class PostResolveTargetScanner(string mutationTargetURI,
             AddTarget(($"{tpRhs.StartToken.pos}-{tpRhs.EndToken.pos}", "EVR", "null"));
         }
     }
+
+    private void ScanINCTargets(NameSegment nSegExpr) {
+        if (!ShouldImplement("INC") || !IsIncludedInTarget(nSegExpr)) return;
+        
+        switch (nSegExpr.Type) {
+            case IntType: AddTarget(($"{nSegExpr.Center.pos}", "INC", "int")); break;
+            case RealType: AddTarget(($"{nSegExpr.Center.pos}", "INC", "real")); break;
+            case UserDefinedType uType:
+                if (uType.Name == "nat")
+                    AddTarget(($"{nSegExpr.Center.pos}", "INC", "int"));
+                break;
+        }
+    }
+    
+    private void ScanDECTargets(NameSegment nSegExpr) {
+        if (!ShouldImplement("DEC") || !IsIncludedInTarget(nSegExpr)) return;
+        
+        switch (nSegExpr.Type) {
+            case IntType: AddTarget(($"{nSegExpr.Center.pos}", "DEC", "int")); break;
+            case RealType: AddTarget(($"{nSegExpr.Center.pos}", "DEC", "real")); break;
+            case UserDefinedType uType:
+                if (uType.Name == "nat")
+                    AddTarget(($"{nSegExpr.Center.pos}", "DEC", "int"));
+                break;
+        }
+    }
     
     private void ScanVERTargets(NameSegment nSegExpr) {
         if (!ShouldImplement("VER") || !IsIncludedInTarget(nSegExpr)) return;
@@ -764,8 +790,11 @@ public class PostResolveTargetScanner(string mutationTargetURI,
                 ScanEVRTargets(operand);
             }
             
-            if (operand is NameSegment nSegExpr)
+            if (operand is NameSegment nSegExpr) {
+                ScanINCTargets(nSegExpr);
+                ScanDECTargets(nSegExpr);
                 ScanVERTargets(nSegExpr);
+            }
             if (operand is SuffixExpr suffixExpr && !_skipChildFARMutation && 
                 suffixExpr is ExprDotName exprDName && exprDName.Lhs is NameSegment nSegExprLhs && 
                 nSegExprLhs.Type.AsTopLevelTypeWithMembers != null && nSegExprLhs.Type.AsTopLevelTypeWithMembers is ClassLikeDecl)
@@ -776,8 +805,11 @@ public class PostResolveTargetScanner(string mutationTargetURI,
     }
 
     protected override void VisitExpression(NameSegment nSegExpr) {
-        if (!_skipChildVERMutation)
+        if (!_skipChildVERMutation) {
+            ScanINCTargets(nSegExpr);
+            ScanDECTargets(nSegExpr);
             ScanVERTargets(nSegExpr);
+        }
         
         var classDecl = nSegExpr.Type.AsTopLevelTypeWithMembers;
         if (classDecl != null && classDecl is ClassDecl && 
