@@ -8,7 +8,7 @@ public abstract class StateChangingAssignTemplate(int snapTargetPos, string snap
     : Template(snapTargetPos, snapTargetPred, "", reporter)
 {
     public AssignStatement? CreateStateChangingAssignment() {
-        return stateChangingTargetAssignType switch {
+        var stateChangingAssign = stateChangingTargetAssignType switch {
             "int" or "nat" => CreateIntegerAssignment(),
             "real" => CreateRealAssignment(),
             "bool" => CreateBoolAssignment(),
@@ -22,6 +22,9 @@ public abstract class StateChangingAssignTemplate(int snapTargetPos, string snap
             "array" => CreateArrayAssignment(),
             _ => null
         };
+        using StreamWriter sw = File.CreateText("state-changing-assign.txt");
+        sw.WriteLine(stateChangingAssign);
+        return stateChangingAssign;
     }
 
     private AssignStatement CreateAssignment(AssignmentRhs aRhs) {

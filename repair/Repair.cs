@@ -227,7 +227,9 @@ public class MutationTargetScanner(string mutationTargetURI, string mutationTarg
         printer.PrintProgram(program, false);
         var programText = stringWriter.ToString();
         
-        var filename = Path.GetFileNameWithoutExtension(program.Name) + ".dfy";
+        var filename = program.Name.Contains("__instrumented_helper") ? 
+            Path.GetFileNameWithoutExtension(program.Name)[..^21] + ".dfy" : // remove __instrumented_helper
+            Path.GetFileName(program.Name);
         Directory.CreateDirectory("original");
         File.WriteAllText(Path.Combine("original", filename), programText);
     }

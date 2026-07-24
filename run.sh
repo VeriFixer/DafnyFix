@@ -129,7 +129,7 @@ scan_state_template_repairs() {
     dotnet "$DAFNY_BIN" verify "$instrumented_program" --allow-warnings \
         --plugin "$REPAIR_BIN","scanSnap $line $pred $value" > /dev/null
 
-    rm "$instrumented_program"
+    rm -f "$instrumented_program"
 }
 
 mutate_program() {
@@ -152,7 +152,7 @@ mutate_program() {
         mutant_outcome_msg=$(process_output "$output")
         echo $mutant_outcome_msg
         echo
-        rm elapsed-time.csv
+        rm -f elapsed-time.csv
     done < targets.csv
 }
 
@@ -191,33 +191,56 @@ apply_repair_templates() {
             --plugin "$REPAIR_BIN","$plugin_args")
 
         if [ "$instrumented_program" != "$PROGRAM" ]; then
-            rm "$instrumented_program"
+            rm -f "$instrumented_program"
         fi
         process_output "$output"
         echo
         
-        sed -i '1,2d' "$REPAIR_FILE"
-        mutate_repair_template
-        rm elapsed-time.csv
+        has_successful_repair_using_template=$(got_successful_repair_using_template)
+        if [[ -z $has_successful_repair_using_template ]]; then
+            echo $(mutate_repair_template)
+        fi
+        rm -f elapsed-time.csv
     done < template-targets.csv
 }
 
 mutate_repair_template() {
-    diff=$(diff -Z $REPAIR_FILE $PROGRAM)
+    if [ ! -f state-changing-assign.txt ]; then
+        exit 1
+    fi
+
+    program_name=$(basename $PROGRAM)
+    diff=$(diff -Z "$REPAIR_FILE" "$RUN_DIR/original/$program_name")
     context_lines=$(echo "$diff" | grep -v '^[<>-]')
-    
+    state_changing_assign=$(cat state-changing-assign.txt)
+    assign_lines=$(grep -n "$state_changing_assign" "$REPAIR_FILE" | cut -f1 -d:)
+    scan_arg=""
+
     while IFS= read -r context_line; do
         repair_lines=$(echo "$context_line" | sed 's/[adc].*//' | sed 's/,/-/g')
+        assign_repair_lines_intersection=$(echo "$assign_lines" | grep "$repair_lines")
+
         if [[ "$repair_lines" == *-* ]]; then
-            scan_arg="lineRange:$repair_lines"
-        else
+            range_start="${repair_lines%-*}"
+            range_end="${repair_lines#*-}"
+            assign_line=$(echo "$assign_lines" | awk -v s="$range_start" -v e="$range_end" \
+                '$1 >= s && $1 <= e { print $1; exit }')
+            if [[ -n "$assign_line" ]]; then
+                echo "Scanning mutation targets for program line $assign_line"
+                scan_arg="line:$assign_line"
+            fi
+        elif [[ -n $assign_repair_lines_intersection ]]; then
+            echo "Scanning mutation targets for program line $assign_repair_lines_intersection"
             scan_arg="line:$repair_lines"
         fi
+    done <<< "$context_lines"
 
+    if [[ -n $scan_arg ]]; then
         scan_program "$scan_arg" "$REPAIR_FILE"
         mutate_program "$REPAIR_FILE"
-        rm targets.csv
-    done <<< "$context_lines"
+        echo; echo
+        rm -f targets.csv
+    fi
 }
 
 process_output() {
@@ -267,12 +290,19 @@ got_successful_repair() {
     fi
 }
 
+got_successful_repair_using_template() {
+    repair_dir=$(dirname $REPAIR_FILE)
+    if [ "$repair_dir" == "$OUT_DIR/repairs" ]; then
+        echo Has repair
+    fi
+}
+
 # ------------------------------------------------------------------------------ Main
 
 pushd . > /dev/null 2>&1
 cd "$RUN_DIR"
 
-# Basic fault localization
+# Basic mutation-based fault localization
 echo "Running fault localization on $PROGRAM"
 predictions=$(run_cntm_fault_localization)
 echo "PREDICTIONS: $predictions"
@@ -285,7 +315,7 @@ for line in "${lines[@]}"; do
     echo "Scanning mutation targets for program line $line"
     scan_program "line:$line"
     mutate_program
-    rm targets.csv
+    rm -f targets.csv
 
     lines_explored=$((lines_explored+1))
     if [ "$lines_explored" -ge "$MIN_LINES_TO_EXPLORE" ] && [ "$lines_explored" -ge "$exam_num_lines" ]; then
@@ -296,7 +326,7 @@ IFS=$' \t\n'
 echo
 
 
-# State fault localization
+# State-based fault localization
 echo "Running state-based fault localization on $PROGRAM"
 all_predictions=$(run_snap_fault_localization)
 predictions=$(echo -e "$all_predictions" | cat -v | \
@@ -320,7 +350,7 @@ for snapshot in "${snapshots[@]}"; do
     scan_state_template_repairs "$line" "$pred" "$value"
     mv targets.csv template-targets.csv
     apply_repair_templates
-    rm template-targets.csv
+    rm -f template-targets.csv
 done
 
 has_successful_repairs=$(got_successful_repair)
@@ -342,7 +372,7 @@ if [[ -z $has_successful_repairs ]]; then
         scan_state_template_repairs "$line" "$pred" "$value"
         mv targets.csv template-targets.csv
         apply_repair_templates
-        rm template-targets.csv
+        rm -f template-targets.csv
 
         has_successful_repairs=$(got_successful_repair)
         if [[ -n $has_successful_repairs ]]; then
