@@ -423,6 +423,11 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
                 StateTemplateTargetScanner.SuspiciousIfStmt = _parentIfStmt;
             if (stmt is VarDeclStmt && WantsStateTarget) return;
         }
+        // check if the line next to the suspicious one is a return
+        if (snapshotTarget.Item1 != -1 && stmt is ReturnStmt rStmt &&
+            stmt.StartToken.line  <= snapshotTarget.Item1 + 2 && 
+            stmt.EndToken.line >= snapshotTarget.Item1 + 2)
+            StateTemplateTargetScanner.StmtImmediatelyAfterSuspiciousNode = rStmt;
         
         OriginalStmts.Add(stmt);
         base.HandleStatement(stmt);

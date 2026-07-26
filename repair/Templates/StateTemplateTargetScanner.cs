@@ -10,12 +10,15 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     private List<List<string>> Targets { get; } = [];
     private static readonly List<string> _assignChangingTemplates = ["tpl1", "tpl2", "tpl4"];
     public static Node? SuspiciousNode;
+    public static ReturnStmt? StmtImmediatelyAfterSuspiciousNode;
     public static Expression? SnapTargetPred;
     public static IfStmt? SuspiciousIfStmt;
     private readonly List<string> _snapTargetPredIdentifiers = [];
 
     public void ScanStateBasedTemplates() {
         Targets.Add(["tpl3", $"{snapTargetPos}", snapTargetPred, $"{snapTargetVal}"]);
+        if (StmtImmediatelyAfterSuspiciousNode != null)
+            Targets.Add(["tpl3", $"{snapTargetPos + 1}", snapTargetPred, $"{snapTargetVal}"]);
         ScanAssignChangingTemplates();
         ScanExprUpdatingTemplates();
         ScanImplicationToIfStmtTemplate();
@@ -51,6 +54,11 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
                 if (template != "tpl1")
                     newTarget.AddRange([snapTargetPred, $"{snapTargetVal}"]);
                 Targets.Add(newTarget);
+                if (StmtImmediatelyAfterSuspiciousNode != null) {
+                    newTarget = new List<string>(newTarget);
+                    newTarget[3] = $"{snapTargetPos + 1}";
+                    Targets.Add(newTarget);
+                }
             }
         }
     }
@@ -61,17 +69,20 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
         // expr replacement
         var updatingCandidateNodes = GetUpdatingCandidateNodes();
         foreach (var candidate in updatingCandidateNodes) {
+            var pos = candidate != StmtImmediatelyAfterSuspiciousNode
+                ? $"{snapTargetPos}"
+                : $"{snapTargetPos + 1}";
             var suspiciousExpr = FindSuspiciousExpr(candidate, bExpr.E0);
             if (suspiciousExpr != null) {
                 var toReplaceExpr = bExpr.E0.ToString();
                 var replacementExpr = bExpr.E1.ToString();
-                Targets.Add(["tpl5", $"{snapTargetPos}", $"{toReplaceExpr}<->{replacementExpr}"]);
+                Targets.Add(["tpl5", pos, $"{toReplaceExpr}<->{replacementExpr}"]);
             }
             suspiciousExpr = FindSuspiciousExpr(candidate, bExpr.E1);
             if (suspiciousExpr != null) {
                 var toReplaceExpr = bExpr.E1.ToString();
                 var replacementExpr = bExpr.E0.ToString();
-                Targets.Add(["tpl5", $"{snapTargetPos}", $"{toReplaceExpr}<->{replacementExpr}"]);
+                Targets.Add(["tpl5", pos, $"{toReplaceExpr}<->{replacementExpr}"]);
             }
         }
         
@@ -130,12 +141,15 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
     }
 
     private List<Node> GetUpdatingCandidateNodes() {
-        return SuspiciousNode switch {
+        List<Node> updatingCandidateNodes = SuspiciousNode switch {
             IfStmt { Guard: not null } ifStmt => [ifStmt.Guard],
             WhileStmt whileStmt => [whileStmt.Guard],
             ForLoopStmt forStmt => [forStmt.Start, forStmt.End],
             _ => SuspiciousNode != null ? [SuspiciousNode] : []
         };
+        if (StmtImmediatelyAfterSuspiciousNode != null)
+            updatingCandidateNodes.Add(StmtImmediatelyAfterSuspiciousNode);
+        return updatingCandidateNodes;
     }
 
     private Node? FindSuspiciousExpr(Node rootNode, Expression snapTargetPredHS) {
