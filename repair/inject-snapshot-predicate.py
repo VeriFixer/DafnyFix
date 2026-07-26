@@ -3,10 +3,14 @@ import os
 
 def find_method_body(program_file):
     with open(program_file, 'r') as file:
+        is_inside_method = False
         method_body_beginning_idx = 0
         lines = file.readlines()
         for line in lines:
-            if "{" in line and not "}" in line and not ":" in line:
+            if "method" in line:
+                is_inside_method = True
+            if is_inside_method and "{" in line and not "}" in line and not ":" in line:
+                is_inside_method = False
                 initial_content = lines[:method_body_beginning_idx + 1]
                 final_content = []
                 if method_body_beginning_idx < len(lines) - 1:
