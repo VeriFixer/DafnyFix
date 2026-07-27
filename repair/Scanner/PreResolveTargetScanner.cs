@@ -389,11 +389,15 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     protected override void HandleMethod(Method method) {
         if (mutationTargetMethod != "" && method.Name != mutationTargetMethod)
             return;
-        
         _isCurrentMethodVoid = method.Outs.Count == 0;
         _currentMethodOuts = method.Outs.Select(o => o.Name).ToList();
         _currentInitMethodOuts = [];
         _parentBlockHasStmt = false;
+        
+        if (snapshotTarget.Item1 != -1 && 
+            method.StartToken.line <= snapshotTarget.Item1 + 1 && 
+            method.EndToken.line >= snapshotTarget.Item1 + 1) // 1 offset due to inserted helper print stmt 
+            StateTemplateTargetScanner.SuspiciousMethod = method;
         
         base.HandleMethod(method);
         if (ShouldImplement("SDL") && IsIncludedInTarget(method) &&

@@ -10,16 +10,18 @@ public class Template4(int snapTargetPos, string snapTargetPred, bool snapTarget
         if (SuspiciousStmt == null || SuspiciousBlockStmt == null || SnapTargetPred == null)
             return;
 
-        var assign = CreateStateChangingAssignment();
+        Statement? newStmt = stateChangingTargetAssignVar != "-" ? 
+            CreateStateChangingAssignment() : 
+            CreateStateChangingReturn();
         var faultyStmtIdx = SuspiciousBlockStmt.Body.IndexOf(SuspiciousStmt);
-        if (assign == null || faultyStmtIdx == -1) 
+        if (newStmt == null || faultyStmtIdx == -1) 
             return;
         SuspiciousBlockStmt.Body.RemoveAt(faultyStmtIdx);
         
         var snapTargetValLiteral = new LiteralExpr(null, snapTargetVal);
         var ifSnapPredStmtGuard = new BinaryExpr(null, 
             BinaryExpr.Opcode.Eq, SnapTargetPred, snapTargetValLiteral);
-        var ifSnapPredStmtThnBody = new BlockStmt(null, [assign]);
+        var ifSnapPredStmtThnBody = new BlockStmt(null, [newStmt]);
         var ifSnapPredStmtElsBody = new BlockStmt(null, [SuspiciousStmt]);
         var ifSnapPredStmt = new IfStmt(null, 
             false, ifSnapPredStmtGuard, 

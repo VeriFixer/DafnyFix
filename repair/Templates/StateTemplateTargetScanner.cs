@@ -9,6 +9,7 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
 {
     private List<List<string>> Targets { get; } = [];
     private static readonly List<string> _assignChangingTemplates = ["tpl1", "tpl2", "tpl4"];
+    public static Method? SuspiciousMethod;
     public static Node? SuspiciousNode;
     public static ReturnStmt? StmtImmediatelyAfterSuspiciousNode;
     public static Expression? SnapTargetPred;
@@ -29,28 +30,8 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
         
         foreach (var template in _assignChangingTemplates) {
             foreach (var (var, type) in snapPredSubexpressions) {
-                var typeStr = "";
-                switch (type) {
-                    case IntType: typeStr = "int"; break;
-                    case RealType: typeStr = "real"; break;
-                    case BoolType: typeStr = "bool"; break;
-                    case BitvectorType: typeStr = "bv"; break;
-                    case CharType: typeStr = "char"; break;
-                    case SetType: typeStr = "set"; break;
-                    case MultiSetType: typeStr = "multiset"; break;
-                    case SeqType: typeStr = "seq"; break;
-                    case MapType: typeStr = "map"; break;
-                    case UserDefinedType uType:
-                        if (uType.Name == "nat") {
-                            typeStr = "int";
-                        } else if (uType.Name == "string") {
-                            typeStr = "string";
-                        } else if (type.IsArrayType) {
-                            typeStr = "array";
-                        }
-                        break;
-                }
-                List<string> newTarget = [template, var, typeStr, $"{snapTargetPos}"];
+                var varTypeStr = GetTypeStr(type);
+                List<string> newTarget = [template, var, varTypeStr, $"{snapTargetPos}"];
                 if (template != "tpl1")
                     newTarget.AddRange([snapTargetPred, $"{snapTargetVal}"]);
                 Targets.Add(newTarget);
@@ -60,6 +41,23 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
                     Targets.Add(newTarget);
                 }
             }
+            
+            // return default value
+            if (SuspiciousMethod == null) continue;
+            var returnTypeStr = "";
+            foreach (var output in SuspiciousMethod.Outs) {
+                var outputTypeStr = GetTypeStr(output.Type);
+                if (outputTypeStr == "") {
+                    returnTypeStr = "";
+                    break;
+                }
+                returnTypeStr = returnTypeStr == "" ? outputTypeStr : $"{returnTypeStr}-{outputTypeStr}";
+            }
+            if (returnTypeStr == "") continue;
+            List<string> newReturnTarget = [template, "-", returnTypeStr, $"{snapTargetPos}"];
+            if (template != "tpl1")
+                newReturnTarget.AddRange([snapTargetPred, $"{snapTargetVal}"]);
+            Targets.Add(newReturnTarget);
         }
     }
 
@@ -121,6 +119,27 @@ public class StateTemplateTargetScanner(int snapTargetPos, string snapTargetPred
             if (SuspiciousIfStmt != null)
                 Targets.Add(["tpl6", $"{snapTargetPos}", $"{outerBExpr.E0}", $"{suspiciousIdentifier}", $"{innerBExpr.E1}", "false"]);
         }
+    }
+
+    private string GetTypeStr(Type type) {
+        return type switch {
+            IntType => "int",
+            RealType => "real",
+            BoolType => "bool",
+            BitvectorType => "bv",
+            CharType => "char",
+            SetType => "set",
+            MultiSetType => "multiset",
+            SeqType => "seq",
+            MapType => "map",
+            UserDefinedType uType => uType.Name switch {
+                "nat" => "int",
+                "string" => "string",
+                "array" => "array",
+                _ => ""
+            },
+            _ => ""
+        };
     }
 
     private List<(string, Type)> FindVarSnapPredSubexpressions() {

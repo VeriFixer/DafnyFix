@@ -8,90 +8,121 @@ public abstract class StateChangingAssignTemplate(int snapTargetPos, string snap
     : Template(snapTargetPos, snapTargetPred, "", reporter)
 {
     public AssignStatement? CreateStateChangingAssignment() {
-        var stateChangingAssign = stateChangingTargetAssignType switch {
-            "int" or "nat" => CreateIntegerAssignment(),
-            "real" => CreateRealAssignment(),
-            "bool" => CreateBoolAssignment(),
-            "bv" => CreateBitVectorAssignment(),
-            "char" => CreateCharAssignment(),
-            "string" => CreateStringAssignment(),
-            "set" => CreateSetAssignment(),
-            "multiset" => CreateMultisetAssignment(),
-            "seq" => CreateSeqAssignment(),
-            "map" => CreateMapAssignment(),
-            "array" => CreateArrayAssignment(),
+        var stateChangingAssignRhs = stateChangingTargetAssignType switch {
+            "int" or "nat" => CreateIntegerAssignmentRhs(),
+            "real" => CreateRealAssignmentRhs(),
+            "bool" => CreateBoolAssignmentRhs(),
+            "bv" => CreateBitVectorAssignmentRhs(),
+            "char" => CreateCharAssignmentRhs(),
+            "string" => CreateStringAssignmentRhs(),
+            "set" => CreateSetAssignmentRhs(),
+            "multiset" => CreateMultisetAssignmentRhs(),
+            "seq" => CreateSeqAssignmentRhs(),
+            "map" => CreateMapAssignmentRhs(),
+            "array" => CreateArrayAssignmentRhs(),
             _ => null
         };
+        if (stateChangingAssignRhs == null) return null;
+        var varNameSegment = new NameSegment(null, stateChangingTargetAssignVar, null);
+        var stateChangingAssign = new AssignStatement(null, [varNameSegment], [stateChangingAssignRhs]);
+        
         using StreamWriter sw = File.CreateText("state-changing-assign.txt");
         sw.WriteLine(stateChangingAssign);
         return stateChangingAssign;
+    }
+
+    public ReturnStmt? CreateStateChangingReturn() {
+        List<AssignmentRhs> returnRhs = [];
+        var returnTypes = stateChangingTargetAssignType.Split("-");
+        foreach (var returnType in returnTypes) {
+            var stateChangingReturnVal = returnType switch {
+                "int" or "nat" => CreateIntegerAssignmentRhs(),
+                "real" => CreateRealAssignmentRhs(),
+                "bool" => CreateBoolAssignmentRhs(),
+                "bv" => CreateBitVectorAssignmentRhs(),
+                "char" => CreateCharAssignmentRhs(),
+                "string" => CreateStringAssignmentRhs(),
+                "set" => CreateSetAssignmentRhs(),
+                "multiset" => CreateMultisetAssignmentRhs(),
+                "seq" => CreateSeqAssignmentRhs(),
+                "map" => CreateMapAssignmentRhs(),
+                "array" => CreateArrayAssignmentRhs(),
+                _ => null
+            };
+            if (stateChangingReturnVal == null) return null;
+            returnRhs.Add(stateChangingReturnVal);
+        }
+        var stateChangingReturn = new ReturnStmt(null, returnRhs);
+        
+        using StreamWriter sw = File.CreateText("state-changing-assign.txt");
+        sw.WriteLine(stateChangingReturn);
+        return stateChangingReturn;
     }
 
     private AssignStatement CreateAssignment(AssignmentRhs aRhs) {
         var varNameSegment = new NameSegment(null, stateChangingTargetAssignVar, null);
         return new AssignStatement(null, [varNameSegment], [aRhs]);
     }
-
-    private AssignStatement CreateIntegerAssignment() {
+    
+    private AssignmentRhs CreateIntegerAssignmentRhs() { // TODO: change each of these to return AssignmentRhs
         var varNameSegment = new NameSegment(null, stateChangingTargetAssignVar, null);
         var oneLiteral = new LiteralExpr(null, 1);
         var addExpr = new BinaryExpr(null, BinaryExpr.Opcode.Add, varNameSegment, oneLiteral);
-        return CreateAssignment(new ExprRhs(addExpr));
+        return new ExprRhs(addExpr);
     }
     
-    private AssignStatement CreateRealAssignment() {
+    private AssignmentRhs CreateRealAssignmentRhs() {
         var varNameSegment = new NameSegment(null, stateChangingTargetAssignVar, null);
         var oneLiteral = new LiteralExpr(null, BigDec.FromString("1.0"));
         var addExpr = new BinaryExpr(null, BinaryExpr.Opcode.Add, varNameSegment, oneLiteral);
-        return CreateAssignment(new ExprRhs(addExpr));
+        return new ExprRhs(addExpr);
     }
     
-    private AssignStatement CreateBoolAssignment() {
+    private AssignmentRhs CreateBoolAssignmentRhs() {
         var trueLiteral = new LiteralExpr(null, true);
-        return CreateAssignment(new ExprRhs(trueLiteral));
+        return new ExprRhs(trueLiteral);
     }
     
-    private AssignStatement CreateBitVectorAssignment() {
+    private AssignmentRhs CreateBitVectorAssignmentRhs() {
         var zeroLiteral = new LiteralExpr(null, BigDec.FromString("0"));
-        return CreateAssignment(new ExprRhs(zeroLiteral));
+        return new ExprRhs(zeroLiteral);
     }
     
-    private AssignStatement CreateCharAssignment() {
+    private AssignmentRhs CreateCharAssignmentRhs() {
         var charLiteral = new CharLiteralExpr(null, " ");
-        return CreateAssignment(new ExprRhs(charLiteral));
+        return new ExprRhs(charLiteral);
     }
     
-    private AssignStatement CreateStringAssignment() {
+    private AssignmentRhs CreateStringAssignmentRhs() {
         var strLiteral = new StringLiteralExpr(null, "", false);
-        return CreateAssignment(new ExprRhs(strLiteral));
+        return new ExprRhs(strLiteral);
     }
     
-    private AssignStatement CreateSetAssignment() {
+    private AssignmentRhs CreateSetAssignmentRhs() {
         var emptySetExpr = new SetDisplayExpr(null, true, []);
-        return CreateAssignment(new ExprRhs(emptySetExpr));
+        return new ExprRhs(emptySetExpr);
     }
     
-    private AssignStatement CreateMultisetAssignment() {
+    private AssignmentRhs CreateMultisetAssignmentRhs() {
         var emptyMultisetExpr = new MultiSetDisplayExpr(null, []);
-        return CreateAssignment(new ExprRhs(emptyMultisetExpr));
+        return new ExprRhs(emptyMultisetExpr);
     }
     
-    private AssignStatement CreateSeqAssignment() {
+    private AssignmentRhs CreateSeqAssignmentRhs() {
         var emptySeqExpr = new SeqDisplayExpr(null, []);
-        return CreateAssignment(new ExprRhs(emptySeqExpr));
+        return new ExprRhs(emptySeqExpr);
     }
     
-    private AssignStatement CreateMapAssignment() {
+    private AssignmentRhs CreateMapAssignmentRhs() {
         var emptyMapExpr = new MapDisplayExpr(null, true, []);
-        return CreateAssignment(new ExprRhs(emptyMapExpr));
+        return new ExprRhs(emptyMapExpr);
     }
     
-    private AssignStatement CreateArrayAssignment() {
-        var emptyArrayExpr = new TypeRhs(null, 
+    private TypeRhs CreateArrayAssignmentRhs() {
+        return new TypeRhs(null, 
             new IntType(null), 
             new LiteralExpr(null, 0), 
             []
         );
-        return CreateAssignment(emptyArrayExpr);
     }
 }

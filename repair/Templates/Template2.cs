@@ -10,15 +10,17 @@ public class Template2(int snapTargetPos, string snapTargetPred, bool snapTarget
         if (SuspiciousStmt == null || SuspiciousBlockStmt == null || SnapTargetPred == null)
             return;
 
-        var assign = CreateStateChangingAssignment();
+        Statement? newStmt = stateChangingTargetAssignVar != "-" ? 
+            CreateStateChangingAssignment() : 
+            CreateStateChangingReturn();
         var faultyStmtIdx = SuspiciousBlockStmt.Body.IndexOf(SuspiciousStmt);
-        if (assign == null || faultyStmtIdx == -1) 
+        if (newStmt == null || faultyStmtIdx == -1) 
             return;
         
         var snapTargetValLiteral = new LiteralExpr(null, snapTargetVal);
         var ifSnapPredStmtGuard = new BinaryExpr(null, 
             BinaryExpr.Opcode.Eq, SnapTargetPred, snapTargetValLiteral);
-        var ifSnapPredStmtBody = new BlockStmt(null, [assign]);
+        var ifSnapPredStmtBody = new BlockStmt(null, [newStmt]);
         var ifSnapPredStmt = new IfStmt(null, 
             false, ifSnapPredStmtGuard, 
             ifSnapPredStmtBody, null);

@@ -8,10 +8,12 @@ public class Template1(int snapTargetPos, string stateChangingTargetAssignVar, s
     protected override void InstantiateTemplate() {
         if (SuspiciousStmt == null || SuspiciousBlockStmt == null) return;
         
-        var assign = CreateStateChangingAssignment();
+        Statement? newStmt = stateChangingTargetAssignVar != "-" ? 
+            CreateStateChangingAssignment() : 
+            CreateStateChangingReturn();
         var faultyStmtIdx = SuspiciousBlockStmt.Body.IndexOf(SuspiciousStmt);
-        if (assign == null || faultyStmtIdx == -1) 
+        if (newStmt == null || faultyStmtIdx == -1) 
             return;
-        SuspiciousBlockStmt.Body.Insert(faultyStmtIdx, assign);
+        SuspiciousBlockStmt.Body.Insert(faultyStmtIdx, newStmt);
     }
 }
