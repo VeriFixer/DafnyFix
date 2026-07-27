@@ -52,6 +52,8 @@ public class MutatorFactory(ErrorReporter reporter)
             "FAR" => mutationArg == null ? null :
                 new FieldAccessReplacementMutator(mutationTargetPos, mutationArg, reporter),
             "SDL" => new StmtDeletionMutator(mutationTargetPos, reporter),
+            "RevSDL" => mutationArg == null ? null : 
+                new ReversedStmtDeletionMutator(mutationTargetPos, mutationArg, reporter),
             "VDL" => mutationArg == null ? null :
                 new VariableDeletionMutator(mutationTargetPos, mutationArg, reporter),
             "SLD" => new SubseqLimitDeletionMutator(mutationTargetPos, reporter),

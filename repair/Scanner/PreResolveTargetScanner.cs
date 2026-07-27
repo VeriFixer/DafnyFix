@@ -9,6 +9,7 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     (int, string, bool?) snapshotTarget, List<string> operatorsInUse, ErrorReporter reporter)
     : TargetScanner(mutationTargetURI, mutationTargetLine, mutationTargetLineRange, mutationTargetPosRange, snapshotTarget, operatorsInUse, reporter)
 {
+    private readonly List<Statement> _toBeInsertedStmts = [];
     private List<string> _coveredVariableNames = [];
     private List<string> _prevCoveredVariableNames = [];
     private List<string> _varsToDelete = [];
@@ -25,6 +26,7 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     private IfStmt? _parentIfStmt;
     private NameSegment? _currentLoopBoundVar;
     private (BlockStmt?, PrintStmt?) _toRemoveHelperPrintStmt;
+    private bool _mutationTargetLineFound = false;
     private bool _visitFurther = true;
     private bool _isCurrentMethodVoid;
     private bool _parentBlockHasStmt;
@@ -344,14 +346,30 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
         
         return false;
     }
+
+    private void ScanRevSDLTargets() {
+        List<string> includedStmts = [];
+        foreach (var stmt in _toBeInsertedStmts) {
+            if (stmt.StartToken.line  <= mutationTargetLine && 
+                stmt.EndToken.line >= mutationTargetLine)
+                continue;
+            if (includedStmts.Contains(stmt.ToString())) continue;
+            includedStmts.Add(stmt.ToString());
+            AddTarget(($"{mutationTargetLine}", "RevSDL", $"{stmt.StartToken.pos}-{stmt.EndToken.pos}"));
+        }
+    }
     
     /// -------------------------------------
     /// Group of overriden top level visitors
     /// -------------------------------------
     public override void Find(ModuleDefinition module) {
+        _mutationTargetLineFound = false;
         if (module.EndToken.pos != 0)
             _currentScope = (module.StartToken, module.EndToken);
         base.Find(module);
+
+        if (mutationTargetLine != -1 && _mutationTargetLineFound)
+            ScanRevSDLTargets();
     }
     
     protected override void HandleMemberDecls(TopLevelDeclWithMembers decl) {
@@ -418,6 +436,10 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
             return;
         }
         
+        if (mutationTargetLine != -1 &&
+            stmt.StartToken.line  <= mutationTargetLine && 
+            stmt.EndToken.line >= mutationTargetLine)
+            _mutationTargetLineFound = true;
         if (snapshotTarget.Item1 != -1 &&
             stmt.StartToken.line  <= snapshotTarget.Item1 + 1 && 
             stmt.EndToken.line >= snapshotTarget.Item1 + 1) // 1 offset due to inserted helper print stmt 
@@ -486,6 +508,9 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     }
     
     protected override void VisitStatement(ConcreteAssignStatement cAStmt) {
+        if (!_isParentVarDeclStmt)
+            _toBeInsertedStmts.Add(cAStmt);
+        
         var canMutate = true;
         foreach (var lhs in cAStmt.Lhss) {
             string name;
@@ -537,14 +562,20 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     }
     
     protected override void VisitStatement(ProduceStmt pStmt) {
+        if (pStmt is ReturnStmt)
+            _toBeInsertedStmts.Add(pStmt);
+        
         if (ShouldImplement("SDL") && IsIncludedInTarget(pStmt) && pStmt is ReturnStmt && 
             (_currentInitMethodOuts.SequenceEqual(_currentMethodOuts) || _isCurrentMethodVoid))
             // only mutate if method is void or if outputs have been initialized
             AddTarget(($"{pStmt.StartToken.pos}-{pStmt.EndToken.pos}", "SDL", ""));
+        
         base.VisitStatement(pStmt);
     }
     
     protected override void VisitStatement(IfStmt ifStmt) {
+        if (_parentIfStmt == null)
+            _toBeInsertedStmts.Add(ifStmt);
         var prevParentBlockHasStmt = _parentBlockHasStmt;
         var previousParentIfStmt = _parentIfStmt;
         _parentIfStmt = ifStmt;
