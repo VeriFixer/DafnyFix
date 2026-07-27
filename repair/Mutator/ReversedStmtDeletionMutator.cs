@@ -3,7 +3,7 @@ using Microsoft.Dafny;
 namespace Repair.Mutator;
 
 // StmtInsertionMutator
-public class ReversedStmtDeletionMutator(string mutationTargetPos, string targetStmtPos, ErrorReporter reporter) 
+public class ReversedStmtDeletionMutator(string mutationTargetPos, string arg, ErrorReporter reporter) 
     : Mutator("-1", reporter)
 {
     private Statement? _suspiciousStmt;
@@ -11,19 +11,21 @@ public class ReversedStmtDeletionMutator(string mutationTargetPos, string target
     private Statement? _toBeInsertedStmt;
     private BlockStmt? _currentBlockStmt;
     
-    private void CheckIsTargetPos(Statement stmt) {
+    private bool CheckIsTargetPos(Statement stmt) {
         if (!int.TryParse(mutationTargetPos, out var targetPos))
-            return;
+            return false;
         if (stmt.StartToken.line  <= targetPos && 
             stmt.EndToken.line >= targetPos)
         {
             _suspiciousStmt = stmt;
             _suspiciousBlockStmt = _currentBlockStmt;
+            return true;
         }
+        return false;
     }
 
     private void CheckIsTargetStmt(Statement stmt) {
-        var positions = targetStmtPos.Split("-");
+        var positions = arg.Split("-");
         if (positions.Length < 2) return;
         var startPosition = int.Parse(positions[0]);
         var endPosition = int.Parse(positions[1]);
@@ -48,6 +50,17 @@ public class ReversedStmtDeletionMutator(string mutationTargetPos, string target
         var newStmt = cloner.CloneStmt(_toBeInsertedStmt, false);
         ifStmt.Thn.Body.Add(newStmt);
     }
+
+    private void InsertBreakOrContinueStmt() {
+        var newStmt = arg switch {
+            "break" => new BreakOrContinueStmt(null, 1, false),
+            "continue" => new BreakOrContinueStmt(null, 1, true),
+            _ => null
+        };
+        
+        if (newStmt == null || _suspiciousStmt is not IfStmt ifStmt) return;
+        ifStmt.Thn.Body.Add(newStmt);
+    }
     
     /// ---------------------------
     /// Group of overriden visitors
@@ -61,16 +74,19 @@ public class ReversedStmtDeletionMutator(string mutationTargetPos, string target
     
     protected override void HandleBlock(List<Statement> statements) {
         foreach (var stmt in statements) {
-            CheckIsTargetPos(stmt);
+            var isSuspiciousStmt = CheckIsTargetPos(stmt);
             CheckIsTargetStmt(stmt);
             HandleStatement(stmt);
             
-            if (!(_suspiciousStmt != null && _suspiciousBlockStmt != null && 
-                  _toBeInsertedStmt != null)) continue;
             if (TargetFound()) return;
+            if (arg != "break" && arg != "continue" && (_suspiciousStmt == null || 
+                  _suspiciousBlockStmt == null || _toBeInsertedStmt == null)) continue;
+            if ((arg == "break" || arg == "continue") && !isSuspiciousStmt) continue;
             TargetStatement = _suspiciousStmt;
 
-            if (_suspiciousStmt is IfStmt ifStmt && _toBeInsertedStmt is ReturnStmt rStmt) {
+            if (arg == "break" || arg == "continue") {
+                InsertBreakOrContinueStmt();
+            } else if (_suspiciousStmt is IfStmt ifStmt && _toBeInsertedStmt is ReturnStmt) {
                 InsertAtBottomOfIfStmt(ifStmt);
             } else {
                 InsertRegularStmt();

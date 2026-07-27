@@ -26,7 +26,8 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     private IfStmt? _parentIfStmt;
     private NameSegment? _currentLoopBoundVar;
     private (BlockStmt?, PrintStmt?) _toRemoveHelperPrintStmt;
-    private bool _mutationTargetLineFound = false;
+    private bool _mutationTargetLineFound;
+    private bool _mutationTargetIsIfStmt;
     private bool _visitFurther = true;
     private bool _isCurrentMethodVoid;
     private bool _parentBlockHasStmt;
@@ -357,6 +358,11 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
             includedStmts.Add(stmt.ToString());
             AddTarget(($"{mutationTargetLine}", "RevSDL", $"{stmt.StartToken.pos}-{stmt.EndToken.pos}"));
         }
+
+        if (_mutationTargetIsIfStmt) {
+            AddTarget(($"{mutationTargetLine}", "RevSDL", "break"));
+            AddTarget(($"{mutationTargetLine}", "RevSDL", "continue"));
+        }
     }
     
     /// -------------------------------------
@@ -576,6 +582,8 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     protected override void VisitStatement(IfStmt ifStmt) {
         if (_parentIfStmt == null)
             _toBeInsertedStmts.Add(ifStmt);
+        if (ifStmt.StartToken.line == mutationTargetLine)
+            _mutationTargetIsIfStmt = true;
         var prevParentBlockHasStmt = _parentBlockHasStmt;
         var previousParentIfStmt = _parentIfStmt;
         _parentIfStmt = ifStmt;
