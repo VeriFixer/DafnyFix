@@ -168,16 +168,17 @@ public class Repair : PluginConfiguration
 
     private bool IsValidOperator(string operatorName) {
         return operatorName == "AOR" || operatorName == "ROR" || operatorName == "COR" || operatorName == "LOR" ||
-               operatorName == "SOR" || operatorName == "BBR" || operatorName == "AOI" || operatorName == "COI" ||
-               operatorName == "LOI" || operatorName == "AOD" || operatorName == "COD" || operatorName == "LOD" ||
-               operatorName == "LVR" || operatorName == "EVR" || operatorName == "INC" || operatorName == "DEC" || 
-               operatorName == "VER" || operatorName == "LSR" || operatorName == "LBI" || operatorName == "MRR" || 
-               operatorName == "MAP" || operatorName == "MNR" || operatorName == "MCR" || operatorName == "MVR" || 
-               operatorName == "SAR" || operatorName == "CIR" || operatorName == "CBR" || operatorName == "CBE" || 
-               operatorName == "TAR" || operatorName == "DCR" || operatorName == "FAR" || operatorName == "SDL" || 
-               operatorName == "RevSDL" || operatorName == "VDL" || operatorName == "SLD" || operatorName == "ODL" || 
-               operatorName == "THI" || operatorName == "THD" || operatorName == "AMR" || operatorName == "MMR" || 
-               operatorName == "PRV" || operatorName == "SWS" || operatorName == "SWV";
+               operatorName == "SOR" || operatorName == "BBR" || operatorName == "RevBBR" || operatorName == "AOI" || 
+               operatorName == "COI" || operatorName == "LOI" || operatorName == "AOD" || operatorName == "COD" || 
+               operatorName == "LOD" || operatorName == "LVR" || operatorName == "EVR" || operatorName == "RevEVR" || 
+               operatorName == "INC" || operatorName == "DEC" || operatorName == "VER" || operatorName == "LSR" || 
+               operatorName == "LBI" || operatorName == "MRR" || operatorName == "MAP" || operatorName == "MNR" || 
+               operatorName == "MCR" || operatorName == "MVR" || operatorName == "SAR" || operatorName == "CIR" || 
+               operatorName == "CBR" || operatorName == "CBE" || operatorName == "TAR" || operatorName == "DCR" || 
+               operatorName == "FAR" || operatorName == "SDL" || operatorName == "RevSDL" || operatorName == "VDL" || 
+               operatorName == "SLD" || operatorName == "ODL" || operatorName == "THI" || operatorName == "THD" || 
+               operatorName == "AMR" || operatorName == "MMR" || operatorName == "PRV" || operatorName == "SWS" || 
+               operatorName == "SWV";
     }
 }
 

@@ -15,6 +15,7 @@ public abstract class TargetScanner(string mutationTargetURI,
     protected readonly bool WantsStateTarget = snapshotTarget != (-1, "", null);
     protected static List<Statement> OriginalStmts { get; } = [];
     protected static List<ConstantField> OriginalFields { get; } = [];
+    protected static readonly List<Expression> ToBeInsertedExprs = [];
     
     protected bool ShouldImplement(string op) {
         if (op != "THI" && op != "THD" && op != "AMR" && op != "MMR") {

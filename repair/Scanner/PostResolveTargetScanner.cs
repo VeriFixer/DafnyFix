@@ -516,6 +516,38 @@ public class PostResolveTargetScanner(string mutationTargetURI,
             }
         }
     }
+
+    private void ScanRevBBR(Expression expr) {
+        List<string> includedStmts = [];
+        foreach (var replacementExpr in ToBeInsertedExprs) {
+            if (!IsIncludedInTarget(expr) || 
+                includedStmts.Contains(replacementExpr.ToString()) ||
+                expr.ToString() == replacementExpr.ToString() || 
+                replacementExpr.Type is not BoolType) 
+                continue;
+            
+            var targetExprPos = $"{expr.StartToken.pos}-{expr.EndToken.pos}";
+            var replacementExprPos = $"{replacementExpr.StartToken.pos}-{replacementExpr.EndToken.pos}";
+            includedStmts.Add(replacementExpr.ToString());
+            AddTarget((targetExprPos, "RevBBR", replacementExprPos));
+        }
+    }
+    
+    private void ScanRevEVR(Expression expr) {
+        List<string> includedStmts = [];
+        foreach (var replacementExpr in ToBeInsertedExprs) {
+            if (!IsIncludedInTarget(expr) ||
+                includedStmts.Contains(replacementExpr.ToString()) ||
+                expr.ToString() == replacementExpr.ToString() || 
+                expr.Type.ToString() != replacementExpr.Type.ToString())
+                continue;
+            
+            var targetExprPos = $"{expr.StartToken.pos}-{expr.EndToken.pos}";
+            var replacementExprPos = $"{replacementExpr.StartToken.pos}-{replacementExpr.EndToken.pos}";
+            includedStmts.Add(replacementExpr.ToString());
+            AddTarget((targetExprPos, "RevEVR", replacementExprPos));
+        }
+    }
     
     private string PrimitiveTypeToStr(Type type) {
         if (type.IsIntegerType) return "int";
@@ -740,6 +772,17 @@ public class PostResolveTargetScanner(string mutationTargetURI,
     /// --------------------------------------
     /// Group of overriden expression visitors
     /// --------------------------------------
+    protected override void HandleExpression(Expression expr) {
+        if (expr is LiteralExpr) {
+            if (expr.Type is BoolType) {
+                ScanRevBBR(expr);
+            } else {
+                ScanRevEVR(expr);
+            }
+        }
+        base.HandleExpression(expr);
+    }
+    
     protected override void VisitExpression(LiteralExpr litExpr) {
         if (!((litExpr.Value is BigInteger bi && bi == BigInteger.Zero) || 
               (litExpr.Value is BigDec bd && bd == BigDec.ZERO))) {

@@ -776,6 +776,9 @@ public class PreResolveTargetScanner(string mutationTargetURI, string mutationTa
     /// Group of overriden expression visitors
     /// --------------------------------------
     protected override void HandleExpression(Expression expr) {
+        if (expr is not LiteralExpr)
+            ToBeInsertedExprs.Add(expr);
+        
         if (!_visitFurther)
             return;
         base.HandleExpression(expr);
