@@ -17,7 +17,8 @@ COPY repair/ /app/repair/
 COPY run.sh /app/run.sh
 # and the custom dafny fork
 COPY dafny/ /app/dafny/
-
+# other
+COPY dataset/ /app/dataset
 
 # Build external dependencies
 ARG Z3_VERSION=4.12.1
