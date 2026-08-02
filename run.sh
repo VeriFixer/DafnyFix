@@ -353,6 +353,33 @@ for snapshot in "${snapshots[@]}"; do
     rm -f template-targets.csv
 done
 
+
+# Additional exploration: first of suspicious lines via mutation, then of snapshots
+has_successful_repairs=$(got_successful_repair)
+if [[ -z $has_successful_repairs ]]; then
+    echo
+    echo "Will explore additional suspicious lines until repair is found"
+
+    lines_explored=0
+    exam_num_lines=$(( (length * MIN_PERCENTAGE_TO_EXPLORE + 50) / 100 ))
+    for line in "${lines[@]}"; do
+        echo $line
+        if [ "$lines_explored" -lt "$MIN_LINES_TO_EXPLORE" ] || [ "$lines_explored" -lt "$exam_num_lines" ]; then
+            lines_explored=$((lines_explored+1))
+            continue
+        fi
+
+        echo "Scanning mutation targets for program line $line"
+        scan_program "line:$line"
+        mutate_program
+        rm -f targets.csv
+
+        lines_explored=$((lines_explored+1))
+    done
+    IFS=$' \t\n'
+    echo
+fi
+
 has_successful_repairs=$(got_successful_repair)
 if [[ -z $has_successful_repairs ]]; then
     echo
