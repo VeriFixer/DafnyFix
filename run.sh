@@ -100,7 +100,7 @@ gen_tests() {
     program_dir=$(dirname "$PROGRAM")
     test_file="$program_dir/$program_name.test.dfy"
 
-    if [ ! -f $test_file ]; then
+    if [ ! -f "$test_file" ]; then
         dotnet "$TEST_GEN_BIN" "$PROGRAM" -o "$test_file" \
             --grouping by-status --skip-on-exception --comment-uncompilable -n 20 > /dev/null
         sed -i '1,5d' "$test_file"
@@ -124,7 +124,7 @@ scan_state_template_repairs() {
     local value="$3"
 
     python "$SNAPSHOT_INJECTOR_SCRIPT" "$PROGRAM" "$pred"
-    instrumented_program="$(basename $PROGRAM .dfy)__instrumented_helper.dfy"
+    instrumented_program="$(basename "$PROGRAM" .dfy)__instrumented_helper.dfy"
 
     dotnet "$DAFNY_BIN" verify "$instrumented_program" --allow-warnings \
         --plugin "$REPAIR_BIN","scanSnap $line $pred $value" > /dev/null
@@ -182,7 +182,7 @@ apply_repair_templates() {
         if [[ ! -z "$snap_pred" ]]; then
             # Instrument input program with snapshot predicate to facilitate parsing into Dafny expression
             python "$SNAPSHOT_INJECTOR_SCRIPT" "$PROGRAM" "$snap_pred"
-            instrumented_program="$(basename $PROGRAM .dfy)__instrumented_helper.dfy"
+            instrumented_program="$(basename "$PROGRAM" .dfy)__instrumented_helper.dfy"
         else
             instrumented_program="$PROGRAM"
         fi
@@ -209,7 +209,7 @@ mutate_repair_template() {
         exit 1
     fi
 
-    program_name=$(basename $PROGRAM)
+    program_name=$(basename "$PROGRAM")
     diff=$(diff -Z "$REPAIR_FILE" "$RUN_DIR/original/$program_name")
     context_lines=$(echo "$diff" | grep -v '^[<>-]')
     state_changing_assign=$(cat state-changing-assign.txt)
@@ -282,7 +282,7 @@ process_output() {
 
 got_successful_repair() {
     repairs_dir="$OUT_DIR/repairs"
-    program_name=$(basename $PROGRAM .dfy)
+    program_name=$(basename "$PROGRAM" .dfy)
     repair_file="$repairs_dir/$program_name"
     has_repair_files=$(ls $repair_file* 2> /dev/null)
     if [[ -n $has_repair_files ]]; then
