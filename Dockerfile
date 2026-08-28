@@ -6,7 +6,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/src \
+    PYTHONPATH=/app/verifixer_fault_localization/src \
     FL_LOG_LEVEL=INFO
 
 WORKDIR /app
@@ -15,6 +15,8 @@ WORKDIR /app
 COPY verifixer_fault_localization/ /app/verifixer_fault_localization/
 COPY repair/ /app/repair/
 COPY run.sh /app/run.sh
+COPY gen-jobs.sh /app/gen-jobs.sh
+COPY run-jobs.sh /app/run-jobs.sh
 # and the custom dafny fork
 COPY dafny/ /app/dafny/
 # other

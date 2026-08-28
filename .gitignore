@@ -1,2 +1,5 @@
-mutants
-original
+/jobs
+/repairs
+/original
+/dataset/dafny-synthesis-refined/*.test*
+/dataset/dafny-synthesis-refined/obj
