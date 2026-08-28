@@ -10,6 +10,8 @@
 # Usage:
 # run.sh
 #   <full path to the folder with the base dataset, e.g., $SCRIPT_DIR/../DafnyBench/DafnyBench/dataset/ground_truth/> 
+#   [--min_lines <the minimum number of faulty lines to explore, e.g., 5 (by default)>]
+#   [--min_states <the minimum number of faulty program states to explore, e.g., 10 (by default)>]
 #   [help]
 # ------------------------------------------------------------------------------ General utils
 
@@ -23,10 +25,12 @@ die() {
 # ------------------------------------------------------------------------------ Args
 
 USAGE="Usage: ${BASH_SOURCE[0]}
-   <full path to the folder with the base dataset, e.g., $SCRIPT_DIR/../DafnyBench/DafnyBench/dataset/ground_truth> 
-   [help]"
+    <full path to the folder with the base dataset, e.g., $SCRIPT_DIR/../DafnyBench/DafnyBench/dataset/ground_truth> 
+    [--min_lines <the minimum number of faulty lines to explore, e.g., 5 (by default)>]
+    [--min_states <the minimum number of faulty program states to explore, e.g., 10 (by default)>]
+    [help]"
 
-if [ "$#" -ne "1" ]; then
+if [ "$#" -ne "1" ] && [ "$#" -ne "3" ] && [ "$#" -ne "5" ]; then
   die "$USAGE"
 fi
 if [ "$#" -eq "1" ] && [ "$1" = "--help" ]; then
@@ -35,6 +39,26 @@ if [ "$#" -eq "1" ] && [ "$1" = "--help" ]; then
 fi
 
 INPUT_DATASET_DIR=$1
+shift
+MIN_LINES_TO_EXPLORE=5
+MIN_STATES_TO_EXPLORE=10
+
+while [[ "$1" = --* ]]; do
+  OPTION=$1; shift
+  case $OPTION in
+    (--min_lines)
+      MIN_LINES_TO_EXPLORE=$1;
+      shift;;
+    (--min_states)
+      MIN_STATES_TO_EXPLORE=$1;
+      shift;;
+    (--help)
+      echo "$USAGE";
+      exit 0;;
+    (*)
+      die "$USAGE";;
+  esac
+done
 
 # ------------------------------------------------------------------------- Main
 
@@ -63,6 +87,8 @@ for program_file in $dataset_files; do
   echo "# timefactor:1"     >> "$job_script_file_path"
   echo "bash $master_job_script_file_path \
     \"$program_file\" \
+    --min_lines \"$MIN_LINES_TO_EXPLORE\" \
+    --min_states \"$MIN_STATES_TO_EXPLORE\" \
     --run_dir \"$job_script_dir_path\" > \"$job_log_file_path\" 2>&1" >> "$job_script_file_path"
 done
 
