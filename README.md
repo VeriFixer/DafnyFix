@@ -74,9 +74,9 @@ bash run.sh <full path to the program under repair, e.g., ./dataset/abs.dfy>
 3.2. **On multiple files in parallel**
 ```
 bash gen-jobs.sh <full path to the folder with the base dataset, e.g., ./dataset> 
-   [--min_lines <the minimum number of faulty lines to explore, e.g., 5 (by default)>]
-   [--min_states <the minimum number of faulty program states to explore, e.g., 10 (by default)>]
-   [help]
+    [--min_lines <the minimum number of faulty lines to explore, e.g., 5 (by default)>]
+    [--min_states <the minimum number of faulty program states to explore, e.g., 10 (by default)>]
+    [help]
 
 bash run-jobs.sh
 ```
