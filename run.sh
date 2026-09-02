@@ -6,6 +6,8 @@
 # Usage:
 # run.sh
 #   <full path to the program under repair, e.g., $SCRIPT_DIR/dataset/abs.dfy> 
+#   [--min_lines <the minimum number of faulty lines to explore, e.g., 5 (by default)>]
+#   [--min_states <the minimum number of faulty program states to explore, e.g., 10 (by default)>]
 #   [--run_dir <the directory where the script should be run, e.g., $SCRIPT_DIR (by deafult)>]
 #   [help]
 # ------------------------------------------------------------------------------ General utils
@@ -47,6 +49,10 @@ MIN_LINES_TO_EXPLORE=5
 MIN_PERCENTAGE_TO_EXPLORE=15
 MIN_STATES_TO_EXPLORE=10
 REPAIR_FILE=""
+DAFNY_TIME=0
+FAULT_LOC_TIME=0
+PATCH_GEN_TIME=0
+FIRST_REPAIR_TIME=0
 OUT_DIR="$SCRIPT_DIR/repairs"
 RUN_DIR="$SCRIPT_DIR"
 
@@ -114,8 +120,18 @@ scan_program() {
         program=$PROGRAM
     fi
 
+    start_dafny_time=$(date +%s%3N)
     dotnet "$DAFNY_BIN" verify "$program" --allow-warnings \
         --plugin "$REPAIR_BIN","scan $arg" > /dev/null
+    end_dafny_time=$(date +%s%3N)
+    dafny_time=$((end_dafny_time - start_dafny_time))
+    if [[ -f elapsed-time.csv ]]; then
+        plugin_time=$(awk -F, 'END {print $2}' elapsed-time.csv)
+        dafny_time=$(echo "$dafny_time - $plugin_time" | bc)
+        DAFNY_TIME=$(echo "$DAFNY_TIME + $dafny_time" | bc)
+        PATCH_GEN_TIME=$(echo "$PATCH_GEN_TIME + $plugin_time" | bc)
+        rm elapsed-time.csv
+    fi
 }
 
 scan_state_template_repairs() {
@@ -126,8 +142,18 @@ scan_state_template_repairs() {
     python "$SNAPSHOT_INJECTOR_SCRIPT" "$PROGRAM" "$pred"
     instrumented_program="$(basename "$PROGRAM" .dfy)__instrumented_helper.dfy"
 
+    start_dafny_time=$(date +%s%3N)
     dotnet "$DAFNY_BIN" verify "$instrumented_program" --allow-warnings \
         --plugin "$REPAIR_BIN","scanSnap $line $pred $value" > /dev/null
+    end_dafny_time=$(date +%s%3N)
+    dafny_time=$((end_dafny_time - start_dafny_time))
+    if [[ -f elapsed-time.csv ]]; then
+        plugin_time=$(awk -F, 'END {print $2}' elapsed-time.csv)
+        dafny_time=$(echo "$dafny_time - $plugin_time" | bc)
+        DAFNY_TIME=$(echo "$DAFNY_TIME + $dafny_time" | bc)
+        PATCH_GEN_TIME=$(echo "$PATCH_GEN_TIME + $plugin_time" | bc)
+        rm elapsed-time.csv
+    fi
 
     rm -f "$instrumented_program"
 }
@@ -147,12 +173,21 @@ mutate_program() {
             echo Mutating position $pos: operator $op, argument $arg
         fi
 
+        start_dafny_time=$(date +%s%3N)
         output=$(dotnet "$DAFNY_BIN" verify "$program" --allow-warnings \
             --plugin "$REPAIR_BIN","mut $pos $op $arg" 2>/dev/null)
-        mutant_outcome_msg=$(process_output "$output")
-        echo $mutant_outcome_msg
+        end_dafny_time=$(date +%s%3N)
+        dafny_time=$((end_dafny_time - start_dafny_time))
+        if [[ -f elapsed-time.csv ]]; then
+            plugin_time=$(awk -F, 'END {print $2}' elapsed-time.csv)
+            dafny_time=$(echo "$dafny_time - $plugin_time" | bc)
+            DAFNY_TIME=$(echo "$DAFNY_TIME + $dafny_time" | bc)
+            PATCH_GEN_TIME=$(echo "$PATCH_GEN_TIME + $plugin_time" | bc)
+            rm elapsed-time.csv
+        fi
+
+        process_output "$output"
         echo
-        rm -f elapsed-time.csv
     done < targets.csv
 }
 
@@ -187,8 +222,18 @@ apply_repair_templates() {
             instrumented_program="$PROGRAM"
         fi
 
+        start_dafny_time=$(date +%s%3N)
         output=$(dotnet "$DAFNY_BIN" verify "$instrumented_program" --allow-warnings \
             --plugin "$REPAIR_BIN","$plugin_args")
+        end_dafny_time=$(date +%s%3N)
+        dafny_time=$((end_dafny_time - start_dafny_time))
+        if [[ -f elapsed-time.csv ]]; then
+            plugin_time=$(awk -F, 'END {print $2}' elapsed-time.csv)
+            dafny_time=$(echo "$dafny_time - $plugin_time" | bc)
+            DAFNY_TIME=$(echo "$DAFNY_TIME + $dafny_time" | bc)
+            PATCH_GEN_TIME=$(echo "$PATCH_GEN_TIME + $plugin_time" | bc)
+            rm elapsed-time.csv
+        fi
 
         if [ "$instrumented_program" != "$PROGRAM" ]; then
             rm -f "$instrumented_program"
@@ -198,15 +243,14 @@ apply_repair_templates() {
         
         has_successful_repair_using_template=$(got_successful_repair_using_template)
         if [[ -z $has_successful_repair_using_template ]]; then
-            echo $(mutate_repair_template)
+            mutate_repair_template
         fi
-        rm -f elapsed-time.csv
     done < template-targets.csv
 }
 
 mutate_repair_template() {
     if [ ! -f state-changing-assign.txt ]; then
-        exit 1
+        return 0
     fi
 
     program_name=$(basename "$PROGRAM")
@@ -267,6 +311,10 @@ process_output() {
             echo -e "${COLOR}Repair verification timed out\033[0m"
             output_dir="$OUT_DIR/failed-repairs/timed-out"
         elif [[ -n $verified ]]; then 
+            end_first_repair_runtime=$(date +%s)
+            if [ $FIRST_REPAIR_TIME -eq 0 ]; then
+                FIRST_REPAIR_TIME=$((end_first_repair_runtime - start_total_runtime))
+            fi
             echo -e "${COLOR}Verification succeeded: program successfully repaired\033[0m"
             output_dir="$OUT_DIR/repairs"
         else 
@@ -301,10 +349,14 @@ got_successful_repair_using_template() {
 
 pushd . > /dev/null 2>&1
 cd "$RUN_DIR"
+start_total_runtime=$(date +%s)
 
 # Basic mutation-based fault localization
 echo "Running fault localization on $PROGRAM"
+start_fault_loc_time=$(date +%s)
 predictions=$(run_cntm_fault_localization)
+end_fault_loc_time=$(date +%s)
+FAULT_LOC_TIME=$((end_fault_loc_time - start_fault_loc_time))
 echo "PREDICTIONS: $predictions"
 
 IFS=', ' read -ra lines <<< "$predictions"
@@ -328,7 +380,11 @@ echo
 
 # State-based fault localization
 echo "Running state-based fault localization on $PROGRAM"
+start_fault_loc_time=$(date +%s)
 all_predictions=$(run_snap_fault_localization)
+end_fault_loc_time=$(date +%s)
+FAULT_LOC_TIME=$((FAULT_LOC_TIME + end_fault_loc_time - start_fault_loc_time))
+
 predictions=$(echo -e "$all_predictions" | cat -v | \
     grep -E '^\^\[\[1mPredictions\^\[\[0m(\s*)?:' | \
     cut -d ':' -f 2- | sed -n 's/^[^[]*\[\(.*\)\][^]]*$/\1/p')
@@ -407,6 +463,16 @@ if [[ -z $has_successful_repairs ]]; then
         fi
     done
 fi
+
+PATCH_GEN_TIME=$(awk -v ms="$PATCH_GEN_TIME" 'BEGIN {printf "%.0f", ms/1000}')
+DAFNY_TIME=$(awk -v ms="$DAFNY_TIME" 'BEGIN {printf "%.0f", ms/1000}')
+
+end_total_runtime=$(date +%s)
+echo FIRST REPAIR EXECUTION TIME: $FIRST_REPAIR_TIME
+echo TOTAL FAULT LOCALIZATION TIME: $FAULT_LOC_TIME
+echo TOTAL PATCH GENERATION TIME: $PATCH_GEN_TIME
+echo TOTAL DAFNY TIME: $DAFNY_TIME
+echo TOTAL EXECUTION TIME: $((end_total_runtime - start_total_runtime))
 
 popd > /dev/null 2>&1
 echo "[INFO] Job finished"
